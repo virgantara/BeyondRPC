@@ -16,7 +16,7 @@ import zoo.DCGRL.provider
 import rsmix_provider
 from modelnetc_utils import eval_corrupt_wrapper, ModelNetC
 from tqdm import tqdm
-
+import wandb
 
 # weight initialization:
 def weight_init(m):
@@ -52,6 +52,7 @@ def _init_():
 
 
 def train(args, io):
+    wandb.init(project="UnderCorruption", name=args.exp_name)
     train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
                               num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
@@ -60,7 +61,7 @@ def train(args, io):
     device = torch.device("cuda" if args.cuda else "cpu")
 
     model = DCGRL(args).to(device)
-    print(str(model))
+    # print(str(model))
 
     state_dict = torch.load(args.pretrain_path)
 
@@ -76,6 +77,7 @@ def train(args, io):
     # model.apply(weight_init)
     model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPUs!")
+    wandb.watch(model)
 
     if args.use_sgd:
         print("Use SGD")
@@ -85,6 +87,13 @@ def train(args, io):
         print("Use Adam")
         opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
         scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=args.lr / 100)
+
+
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    print(f"Total parameters: {total_params}")
+    print(f"Trainable parameters: {trainable_params}")
 
     criterion = cal_loss
 
@@ -100,6 +109,7 @@ def train(args, io):
         model.train()
         train_pred = []
         train_true = []
+        wandb_log = {}
         for data, label in tqdm(train_loader):
             '''
             implement augmentation
@@ -168,13 +178,16 @@ def train(args, io):
             train_pred.append(preds.detach().cpu().numpy())
         train_true = np.concatenate(train_true)
         train_pred = np.concatenate(train_pred)
+        train_accuracy = metrics.accuracy_score(train_true, train_pred)
+        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
         outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f' % (epoch,
                                                                                  train_loss * 1.0 / count,
-                                                                                 metrics.accuracy_score(
-                                                                                     train_true, train_pred),
-                                                                                 metrics.balanced_accuracy_score(
-                                                                                     train_true, train_pred))
+                                                                                 train_accuracy,
+                                                                                 train_balanced_accuracy)
         io.cprint(outstr)
+        wandb_log['Train Loss'] = train_loss * 1.0 / count
+        wandb_log['Train Acc'] = train_accuracy
+        wandb_log['Train AVG Acc'] = train_balanced_accuracy
 
         ####################
         # Test
@@ -206,6 +219,10 @@ def train(args, io):
         
         scheduler.step()
         io.cprint(outstr)
+        wandb_log['Test Loss'] = test_loss*1.0/count
+        wandb_log['Test Acc'] = test_acc
+        wandb_log['Test AVG Acc'] = avg_per_class_acc
+        
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
             io.cprint('Max Acc:%.6f' % best_test_acc)
