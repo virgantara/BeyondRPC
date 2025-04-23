@@ -352,7 +352,7 @@ if __name__ == "__main__":
         test(args, io)
     elif args.eval_corrupt:
         device = torch.device("cuda" if args.cuda else "cpu")
-        model = DCGRL().to(device)
+        model = DCGRL(args).to(device)
         model = nn.DataParallel(model)
         model.load_state_dict(torch.load(args.model_path))
         model = model.eval()

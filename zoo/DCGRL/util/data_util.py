@@ -59,7 +59,6 @@ class ModelNet40(Dataset):
         if self.partition == 'train':
             np.random.shuffle(pointcloud)
             if self.PointWOLF is not None:
-                print("Using PointWOLF")
                 _, pointcloud = self.PointWOLF(pointcloud)
         return pointcloud, label
 
