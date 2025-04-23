@@ -92,8 +92,9 @@ def train(args, io):
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    print(f"Total parameters: {total_params}")
-    print(f"Trainable parameters: {trainable_params}")
+    print(f"Total parameters: {total_params / 1e6:.2f}M")
+    print(f"Trainable parameters: {trainable_params / 1e6:.2f}M")
+
 
     criterion = cal_loss
 
@@ -222,7 +223,7 @@ def train(args, io):
         wandb_log['Test Loss'] = test_loss*1.0/count
         wandb_log['Test Acc'] = test_acc
         wandb_log['Test AVG Acc'] = avg_per_class_acc
-        
+
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
             io.cprint('Max Acc:%.6f' % best_test_acc)
