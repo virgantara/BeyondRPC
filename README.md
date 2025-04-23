@@ -11,5 +11,6 @@ AdaDCGRL is a two-stage framework that combines **contrastive pretraining using 
 
 ---
 
-## 🗂 Project Structure
+## Acknowledgements
 
+The zoo code is borrowed from [PointCloud-C](https://github.com/ldkong1205/PointCloud-C) repository.
