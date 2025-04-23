@@ -223,7 +223,7 @@ def train(args, io):
         wandb_log['Test Loss'] = test_loss*1.0/count
         wandb_log['Test Acc'] = test_acc
         wandb_log['Test AVG Acc'] = avg_per_class_acc
-
+        wandb.log(wandb_log)
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
             io.cprint('Max Acc:%.6f' % best_test_acc)
