@@ -107,14 +107,14 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt):
 
     pprint.pprint(perf_all, width=200)
 
-    csv_path=args.exp_name+'_corruption_results.csv'
+    csv_path=args_test_corrupt.exp_name+'_corruption_results.csv'
     keys = sorted(set().union(*(d.keys() for d in results_to_save)))  # combine all keys
     with open(csv_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=keys)
         writer.writeheader()
         writer.writerows(results_to_save)
 
-    csv_path=args.exp_name+'_corruption_recap_results.csv'
+    csv_path=args_test_corrupt.exp_name+'_corruption_recap_results.csv'
     keys = sorted(set().union(*(d.keys() for d in result_corrupted)))  # combine all keys
     with open(csv_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=keys)
