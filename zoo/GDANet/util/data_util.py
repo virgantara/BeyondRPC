@@ -4,7 +4,7 @@ import numpy as np
 from torch.utils.data import Dataset
 import os
 import json
-from PointWOLF import PointWOLF
+from zoo.GDANet.PointWOLF import PointWOLF
 
 
 def load_data(partition):
