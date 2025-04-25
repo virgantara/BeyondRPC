@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 import csv
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, '../../data/pointcloud_c')   # pls change the data dir accordingly
+DATA_DIR = os.path.join(BASE_DIR, 'data/modelnet_c')   # pls change the data dir accordingly
 
 
 def load_h5(h5_name):
