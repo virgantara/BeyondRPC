@@ -63,7 +63,20 @@ def train(args, io):
     model = GDANET().to(device)
     print(str(model))
 
-    model.apply(weight_init)
+    if args.use_initweight:
+        model.apply(weight_init)
+        print("Use weight_init")
+    else:
+        print("Use Pretrain")
+        state_dict = torch.load(args.pretrain_path)
+
+        # optionally: filter only keys that match
+        model_state_dict = model.state_dict()
+        pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
+
+        model_state_dict.update(pretrained_dict)
+        model.load_state_dict(model_state_dict)
+
     model = nn.DataParallel(model)
     wandb.watch(model)
 
@@ -276,6 +289,15 @@ if __name__ == "__main__":
                         help='num of points to use')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+    parser.add_argument('--fusion_type', type=str, default='concat',
+                    choices=['concat', 'add', 'gated', 'attention', 'crossattn'],
+                    help='Fusion strategy')
+    parser.add_argument('--use_residual', action='store_true',
+                    help='Enable residual connection after fusion')
+    parser.add_argument('--pretrain_path', type=str, default='', metavar='N',
+                        help='Pretrained model path')
+    parser.add_argument('--use_initweight', action='store_true', default=False,
+                        help='Use Init Weight')
 
     # added arguments
     parser.add_argument('--rdscale', action='store_true', help='random scaling data augmentation')
