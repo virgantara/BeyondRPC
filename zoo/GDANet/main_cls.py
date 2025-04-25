@@ -98,6 +98,7 @@ def train(args, io):
         model.train()
         train_pred = []
         train_true = []
+        wandb_log = {}
         for data, label in tqdm(train_loader):
             '''
             implement augmentation
