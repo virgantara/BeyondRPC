@@ -286,8 +286,6 @@ if __name__ == "__main__":
                         help='number of episode to train')
     parser.add_argument('--use_sgd', action='store_true', default=True,
                         help='Use SGD')
-    parser.add_argument('--use_initweight', action='store_true', default=False,
-                        help='Use Init Weight')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (default: 0.001, 0.1 if using sgd)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
@@ -313,6 +311,8 @@ if __name__ == "__main__":
                     help='Enable residual connection after fusion')
     parser.add_argument('--pretrain_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+    parser.add_argument('--use_initweight', action='store_true', default=False,
+                        help='Use Init Weight')
 
     # added arguments
     parser.add_argument('--rdscale', action='store_true', help='random scaling data augmentation')

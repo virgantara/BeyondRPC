@@ -28,7 +28,8 @@ from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
 import sklearn.metrics as metrics
 from modelnetc_utils import eval_corrupt_wrapper, ModelNetC
-
+from tqdm import tqdm
+import wandb
 
 def _init_():
     # fix random seed
@@ -62,6 +63,21 @@ def train(args, io):
     
     # create model
     model = CurveNet().to(device)
+
+    if args.use_initweight:
+        model.apply(weight_init)
+        print("Use weight_init")
+    else:
+        print("Use Pretrain")
+        state_dict = torch.load(args.pretrain_path)
+
+        # optionally: filter only keys that match
+        model_state_dict = model.state_dict()
+        pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
+
+        model_state_dict.update(pretrained_dict)
+        model.load_state_dict(model_state_dict)
+
     model = nn.DataParallel(model)
 
     if args.use_sgd:
@@ -88,7 +104,8 @@ def train(args, io):
         model.train()
         train_pred = []
         train_true = []
-        for data, label in train_loader:
+        wandb_log = {}
+        for data, label in tqdm(train_loader):
             data, label = data.to(device), label.to(device).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -114,10 +131,15 @@ def train(args, io):
 
         train_true = np.concatenate(train_true)
         train_pred = np.concatenate(train_pred)
+        train_accuracy = metrics.accuracy_score(train_true, train_pred)
+        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
         outstr = 'Train %d, loss: %.6f, train acc: %.6f' % (epoch, train_loss*1.0/count,
                                                                 metrics.accuracy_score(
                                                                     train_true, train_pred))
         io.cprint(outstr)
+        wandb_log['Train Loss'] = train_loss * 1.0 / count
+        wandb_log['Train Acc'] = train_accuracy
+        wandb_log['Train AVG Acc'] = train_balanced_accuracy
 
         ####################
         # Test
@@ -141,8 +163,15 @@ def train(args, io):
         test_true = np.concatenate(test_true)
         test_pred = np.concatenate(test_pred)
         test_acc = metrics.accuracy_score(test_true, test_pred)
+        avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
         outstr = 'Test %d, loss: %.6f, test acc: %.6f' % (epoch, test_loss*1.0/count, test_acc)
         io.cprint(outstr)
+
+        wandb_log['Test Loss'] = test_loss*1.0/count
+        wandb_log['Test Acc'] = test_acc
+        wandb_log['Test AVG Acc'] = avg_per_class_acc
+        wandb.log(wandb_log)
+
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
             torch.save(model.state_dict(), '../checkpoints/%s/models/model.t7' % args.exp_name)
@@ -212,6 +241,15 @@ if __name__ == "__main__":
                         help='num of points to use')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
+    parser.add_argument('--fusion_type', type=str, default='concat',
+                    choices=['concat', 'add', 'gated', 'attention', 'crossattn'],
+                    help='Fusion strategy')
+    parser.add_argument('--use_residual', action='store_true',
+                    help='Enable residual connection after fusion')
+    parser.add_argument('--pretrain_path', type=str, default='', metavar='N',
+                        help='Pretrained model path AdaCROSSNET')
+    parser.add_argument('--use_initweight', action='store_true', default=False,
+                        help='Use Init Weight')
     args = parser.parse_args()
 
     seed = np.random.randint(1, 10000)
