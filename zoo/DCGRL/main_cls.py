@@ -273,7 +273,7 @@ if __name__ == "__main__":
                         help='Size of batch)')
     parser.add_argument('--epochs', type=int, default=350, metavar='N',
                         help='number of episode to train')
-    parser.add_argument('--use_sgd', type=bool, default=True,
+    parser.add_argument('--use_sgd', action='store_true', default=True,
                         help='Use SGD')
     parser.add_argument('--use_initweight', type=bool, default=False,
                         help='Use Init Weight')
