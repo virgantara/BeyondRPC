@@ -78,6 +78,7 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='co
             if corruption_type != 'clean':
                 test_perf['level'] = level
             pprint.pprint(test_perf, width=200)
+            results_to_save.append(test_perf)
             if corruption_type == 'clean':
                 OA_clean = round(test_perf['acc'], 3)
                 break
@@ -92,7 +93,6 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='co
                 perf_all[k].append(perf_corrupt[k])
         perf_corrupt['corruption'] = corruption_type
         perf_corrupt['level'] = 'Overall'
-        results_to_save.append(perf_corrupt)
         pprint.pprint(perf_corrupt, width=200)
     for k in perf_all:
         perf_all[k] = sum(perf_all[k]) / len(perf_all[k])
@@ -100,15 +100,13 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='co
     perf_all['mCE'] = perf_all.pop('CE')
     perf_all['RmCE'] = perf_all.pop('RCE')
     perf_all['mOA'] = perf_all.pop('OA')
-    perf_all['corruption'] = 'Overall'
-    perf_all['level'] = 'Summary'
-    results_to_save.append(perf_all)
+    
 
     pprint.pprint(perf_all, width=200)
 
-    keys = sorted(set().union(*(d.keys() for d in results_to_save)))
+    # keys = sorted(set().union(*(d.keys() for d in results_to_save)))
     with open(csv_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=keys)
+        writer = csv.DictWriter(f, fieldnames=results_to_save.keys())
         writer.writeheader()
         writer.writerows(results_to_save)
     print(f"\nResults saved to {csv_path}")
