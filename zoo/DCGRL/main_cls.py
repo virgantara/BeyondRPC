@@ -21,20 +21,31 @@ import wandb
 # weight initialization:
 def weight_init(m):
     if isinstance(m, torch.nn.Linear):
-        torch.nn.init.xavier_normal_(m.weight)
-        torch.nn.init.constant_(m.bias, 0)
+        if m.weight is not None:
+            torch.nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)
     elif isinstance(m, torch.nn.Conv2d):
-        torch.nn.init.xavier_normal_(m.weight)
-        torch.nn.init.constant_(m.bias, 0)
+        if m.weight is not None:
+            torch.nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)
     elif isinstance(m, torch.nn.Conv1d):
-        torch.nn.init.xavier_normal_(m.weight)
-        torch.nn.init.constant_(m.bias, 0)
+        if m.weight is not None:
+            torch.nn.init.xavier_normal_(m.weight)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)
     elif isinstance(m, torch.nn.BatchNorm2d):
-        torch.nn.init.constant_(m.weight, 1)
-        torch.nn.init.constant_(m.bias, 0)
+        if m.weight is not None:
+            torch.nn.init.constant_(m.weight, 1)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)
     elif isinstance(m, torch.nn.BatchNorm1d):
-        torch.nn.init.constant_(m.weight, 1)
-        torch.nn.init.constant_(m.bias, 0)
+        if m.weight is not None:
+            torch.nn.init.constant_(m.weight, 1)
+        if m.bias is not None:
+            torch.nn.init.constant_(m.bias, 0)
+
 
 
 def _init_():
