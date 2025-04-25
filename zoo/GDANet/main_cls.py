@@ -5,14 +5,14 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from zoo.GDANET.util.data_util import ModelNet40
-from zoo.GDANET.model.GDANet_cls import GDANET
+from zoo.GDANet.util.data_util import ModelNet40
+from zoo.GDANet.model.GDANet_cls import GDANET
 import numpy as np
 from torch.utils.data import DataLoader
-from zoo.GDANET.util.util import cal_loss, IOStream
+from zoo.GDANet.util.util import cal_loss, IOStream
 import sklearn.metrics as metrics
 from datetime import datetime
-import zoo.GDANET.provider
+import zoo.GDANet.provider
 import rsmix_provider
 from modelnetc_utils import eval_corrupt_wrapper, ModelNetC
 
