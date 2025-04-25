@@ -63,18 +63,20 @@ def train(args, io):
     model = DCGRL(args).to(device)
     # print(str(model))
 
-    state_dict = torch.load(args.pretrain_path)
+    if args.use_initweight:
+        model.apply(weight_init)
+        print("Use weight_init")
+    else:
+        print("Use Pretrain")
+        state_dict = torch.load(args.pretrain_path)
 
-    # optionally: filter only keys that match
-    model_state_dict = model.state_dict()
-    pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
+        # optionally: filter only keys that match
+        model_state_dict = model.state_dict()
+        pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
 
-    model_state_dict.update(pretrained_dict)
-    model.load_state_dict(model_state_dict)
+        model_state_dict.update(pretrained_dict)
+        model.load_state_dict(model_state_dict)
 
-    # checkpoint = torch.load(args.pretrain_path)
-    # model.load_state_dict(checkpoint, strict=False)
-    # model.apply(weight_init)
     model = nn.DataParallel(model)
     print("Let's use", torch.cuda.device_count(), "GPUs!")
     wandb.watch(model)
@@ -273,6 +275,8 @@ if __name__ == "__main__":
                         help='number of episode to train')
     parser.add_argument('--use_sgd', type=bool, default=True,
                         help='Use SGD')
+    parser.add_argument('--use_initweight', type=bool, default=False,
+                        help='Use Init Weight')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (default: 0.001, 0.1 if using sgd)')
     parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
