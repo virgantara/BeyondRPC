@@ -29,7 +29,7 @@ class ModelNetC(Dataset):
     def __len__(self):
         return self.data.shape[0]
         
-def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='corruption_results.csv'):
+def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt):
     """
     The wrapper helps to repeat the original testing function on all corrupted test sets.
     It also helps to compute metrics.
@@ -63,6 +63,8 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='co
 
     results_to_save = []
 
+    result_corrupted = []
+
     for corruption_type in corruptions:
         perf_corrupt = {'OA': []}
         for level in range(5):
@@ -94,6 +96,7 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='co
         perf_corrupt['corruption'] = corruption_type
         perf_corrupt['level'] = 'Overall'
         pprint.pprint(perf_corrupt, width=200)
+        result_corrupted.append(perf_corrupt)
     for k in perf_all:
         perf_all[k] = sum(perf_all[k]) / len(perf_all[k])
         perf_all[k] = round(perf_all[k], 3)
@@ -104,9 +107,17 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='co
 
     pprint.pprint(perf_all, width=200)
 
+    csv_path='corruption_results.csv'
     keys = sorted(set().union(*(d.keys() for d in results_to_save)))  # combine all keys
     with open(csv_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=keys)
         writer.writeheader()
         writer.writerows(results_to_save)
+
+    csv_path='corruption_recap_results.csv'
+    keys = sorted(set().union(*(d.keys() for d in result_corrupted)))  # combine all keys
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=keys)
+        writer.writeheader()
+        writer.writerows(result_corrupted)
     print(f"\nResults saved to {csv_path}")
