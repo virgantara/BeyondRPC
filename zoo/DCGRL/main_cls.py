@@ -275,7 +275,7 @@ if __name__ == "__main__":
                         help='number of episode to train')
     parser.add_argument('--use_sgd', action='store_true', default=True,
                         help='Use SGD')
-    parser.add_argument('--use_initweight', type=bool, default=False,
+    parser.add_argument('--use_initweight', action='store_true', default=False,
                         help='Use Init Weight')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (default: 0.001, 0.1 if using sgd)')
