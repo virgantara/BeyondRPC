@@ -29,7 +29,7 @@ class ModelNetC(Dataset):
     def __len__(self):
         return self.data.shape[0]
         
-def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt):
+def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='corruption_results.csv'):
     """
     The wrapper helps to repeat the original testing function on all corrupted test sets.
     It also helps to compute metrics.
