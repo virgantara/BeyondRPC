@@ -15,7 +15,8 @@ from datetime import datetime
 import zoo.GDANet.provider
 import rsmix_provider
 from modelnetc_utils import eval_corrupt_wrapper, ModelNetC
-
+from tqdm import tqdm
+import wandb
 
 # weight initialization:
 def weight_init(m):
@@ -51,6 +52,7 @@ def _init_():
 
 
 def train(args, io):
+    wandb.init(project="UnderCorruption", name=args.exp_name)
     train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
                               num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
@@ -63,6 +65,8 @@ def train(args, io):
 
     model.apply(weight_init)
     model = nn.DataParallel(model)
+    wandb.watch(model)
+
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
     if args.use_sgd:
@@ -74,12 +78,18 @@ def train(args, io):
         opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
         scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=args.lr / 100)
 
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    print(f"Total parameters: {total_params / 1e6:.2f}M")
+    print(f"Trainable parameters: {trainable_params / 1e6:.2f}M")
+
     criterion = cal_loss
 
     best_test_acc = 0
 
     for epoch in range(args.epochs):
-        scheduler.step()
+        
         ####################
         # Train
         ####################
@@ -88,7 +98,7 @@ def train(args, io):
         model.train()
         train_pred = []
         train_true = []
-        for data, label in train_loader:
+        for data, label in tqdm(train_loader):
             '''
             implement augmentation
             '''
@@ -156,13 +166,16 @@ def train(args, io):
             train_pred.append(preds.detach().cpu().numpy())
         train_true = np.concatenate(train_true)
         train_pred = np.concatenate(train_pred)
+        train_accuracy = metrics.accuracy_score(train_true, train_pred)
+        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
         outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f' % (epoch,
                                                                                  train_loss * 1.0 / count,
-                                                                                 metrics.accuracy_score(
-                                                                                     train_true, train_pred),
-                                                                                 metrics.balanced_accuracy_score(
-                                                                                     train_true, train_pred))
+                                                                                 train_accuracy,
+                                                                                 train_balanced_accuracy)
         io.cprint(outstr)
+        wandb_log['Train Loss'] = train_loss * 1.0 / count
+        wandb_log['Train Acc'] = train_accuracy
+        wandb_log['Train AVG Acc'] = train_balanced_accuracy
 
         ####################
         # Test
@@ -172,7 +185,7 @@ def train(args, io):
         model.eval()
         test_pred = []
         test_true = []
-        for data, label in test_loader:
+        for data, label in tqdm(test_loader):
             data, label = data.to(device), label.to(device).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -191,7 +204,12 @@ def train(args, io):
                                                                               test_loss * 1.0 / count,
                                                                               test_acc,
                                                                               avg_per_class_acc)
+        scheduler.step()
         io.cprint(outstr)
+        wandb_log['Test Loss'] = test_loss*1.0/count
+        wandb_log['Test Acc'] = test_acc
+        wandb_log['Test AVG Acc'] = avg_per_class_acc
+        wandb.log(wandb_log)
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
             io.cprint('Max Acc:%.6f' % best_test_acc)
