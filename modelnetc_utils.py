@@ -104,9 +104,9 @@ def eval_corrupt_wrapper(model, fn_test_corrupt, args_test_corrupt, csv_path='co
 
     pprint.pprint(perf_all, width=200)
 
-    # keys = sorted(set().union(*(d.keys() for d in results_to_save)))
+    keys = sorted(set().union(*(d.keys() for d in results_to_save)))  # combine all keys
     with open(csv_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=results_to_save.keys())
+        writer = csv.DictWriter(f, fieldnames=keys)
         writer.writeheader()
         writer.writerows(results_to_save)
     print(f"\nResults saved to {csv_path}")
