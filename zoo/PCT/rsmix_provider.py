@@ -153,7 +153,7 @@ def rsmix(data_batch, label_batch, beta=1.0, n_sample=512, KNN=False):
     cut_rad = np.random.beta(beta, beta)
     rand_index = np.random.choice(data_batch.shape[0],data_batch.shape[0], replace=False) # label dim : (16,) for model
     
-    if len(label_batch.shape) is 1:
+    if len(label_batch.shape) == 1:
         label_batch = np.expand_dims(label_batch, axis=1)
         
     label_a = label_batch[:,0]
