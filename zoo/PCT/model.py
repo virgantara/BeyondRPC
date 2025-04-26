@@ -23,9 +23,9 @@ class Local_op(nn.Module):
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
 
-class RPCMultiScaleLocalGrouping(nn.Module):
+class RPCMSLG(nn.Module):
     def __init__(self, args, output_channels=40):
-        super(RPCMultiScaleLocalGrouping, self).__init__()
+        super(RPCMSLG, self).__init__()
         self.args = args
 
         self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
