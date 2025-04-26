@@ -179,7 +179,7 @@ def train(args, io):
 
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
-            torch.save(model.state_dict(), '../checkpoints/%s/models/model.t7' % args.exp_name)
+            torch.save(model.state_dict(), 'checkpoints/%s/models/model.t7' % args.exp_name)
         io.cprint('best: %.3f' % best_test_acc)
 
 def test(args, io):
