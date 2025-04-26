@@ -64,10 +64,7 @@ def train(args, io):
     # create model
     model = CurveNet().to(device)
 
-    if args.use_initweight:
-        model.apply(weight_init)
-        print("Use weight_init")
-    else:
+    if not args.use_initweight:
         print("Use Pretrain")
         state_dict = torch.load(args.pretrain_path)
 
