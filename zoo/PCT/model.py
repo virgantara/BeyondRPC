@@ -23,6 +23,75 @@ class Local_op(nn.Module):
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
 
+class RPCMultiScaleLocalGrouping(nn.Module):
+    def __init__(self, args, output_channels=40):
+        super(RPCMultiScaleLocalGrouping, self).__init__()
+        self.args = args
+
+        self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
+        self.bn11 = nn.BatchNorm2d(128, momentum=0.1)
+        self.bn12 = nn.BatchNorm1d(256, momentum=0.1)
+
+        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=True),
+                                   self.bn1)
+        self.conv11 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=True),
+                                    self.bn11)
+        self.SGCAM_1s = SGCAM(128)
+        self.SGCAM_1g = SGCAM(128)
+
+        self.pt_last = Point_Transformer_Last(args)
+
+        self.conv_fuse = nn.Sequential(nn.Conv1d(1280, 1024, kernel_size=1, bias=False),
+                                       nn.BatchNorm1d(1024),
+                                       nn.LeakyReLU(negative_slope=0.2))
+
+        self.linear1 = nn.Linear(1024, 512, bias=False)
+        self.bn6 = nn.BatchNorm1d(512)
+        self.dp1 = nn.Dropout(p=args.dropout)
+        self.linear2 = nn.Linear(512, 256)
+        self.bn7 = nn.BatchNorm1d(256)
+        self.dp2 = nn.Dropout(p=args.dropout)
+        self.linear3 = nn.Linear(256, output_channels)
+
+    def forward(self, x):
+        batch_size, _, _ = x.size()
+
+        
+        # Multi-scale local grouping
+        x1_k20 = local_operator(x, k=20)
+        x1_k30 = local_operator(x, k=30)
+        x1_k40 = local_operator(x, k=40)
+        x1 = torch.cat([x1_k20, x1_k30, x1_k40], dim=1)  # (B, 6*3, N)
+
+        x1 = F.relu(self.conv1(x1))
+        x1 = F.relu(self.conv11(x1))
+        x1 = x1.max(dim=-1, keepdim=False)[0]
+
+        # Geometry-Disentangle Module:
+        x1s, x1g = GDM(x1, M=256)
+
+        # Sharp-Gentle Complementary Attention Module:
+        y1s = self.SGCAM_1s(x1, x1s.transpose(2, 1))
+        y1g = self.SGCAM_1g(x1, x1g.transpose(2, 1))
+        feature_1 = torch.cat([y1s, y1g], 1)
+
+        x = self.pt_last(feature_1)
+
+        # Global Context Injection
+        global_context = torch.max(x, dim=2, keepdim=True)[0]  # (B, 1024, 1)
+        x = x + global_context
+
+        x = torch.cat([x, feature_1], dim=1)
+        x = self.conv_fuse(x)
+        x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
+        x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2)
+        x = self.dp1(x)
+        x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2)
+        x = self.dp2(x)
+        x = self.linear3(x)
+
+        return x
+
 
 class RPC(nn.Module):
     def __init__(self, args, output_channels=40):
