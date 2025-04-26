@@ -43,14 +43,14 @@ def _init_():
     os.environ['PYTHONHASHSEED'] = str(seed)
 
     # prepare file structures
-    if not os.path.exists('../checkpoints'):
-        os.makedirs('../checkpoints')
-    if not os.path.exists('../checkpoints/'+args.exp_name):
-        os.makedirs('../checkpoints/'+args.exp_name)
+    if not os.path.exists('checkpoints'):
+        os.makedirs('checkpoints')
+    if not os.path.exists('checkpoints/'+args.exp_name):
+        os.makedirs('checkpoints/'+args.exp_name)
     if not os.path.exists('../checkpoints/'+args.exp_name+'/'+'models'):
-        os.makedirs('../checkpoints/'+args.exp_name+'/'+'models')
-    os.system('cp main_cls.py ../checkpoints/'+args.exp_name+'/main_cls.py.backup')
-    os.system('cp models/curvenet_cls.py ../checkpoints/'+args.exp_name+'/curvenet_cls.py.backup')
+        os.makedirs('checkpoints/'+args.exp_name+'/'+'models')
+    os.system('cp main_cls.py checkpoints/'+args.exp_name+'/main_cls.py.backup')
+    os.system('cp models/curvenet_cls.py checkpoints/'+args.exp_name+'/curvenet_cls.py.backup')
 
 def train(args, io):
     wandb.init(project="UnderCorruption", name=args.exp_name)
@@ -154,7 +154,7 @@ def train(args, io):
         model.eval()
         test_pred = []
         test_true = []
-        for data, label in test_loader:
+        for data, label in tqdm(test_loader):
             data, label = data.to(device), label.to(device).squeeze()
             data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
@@ -198,7 +198,7 @@ def test(args, io):
     count = 0.0
     test_true = []
     test_pred = []
-    for data, label in test_loader:
+    for data, label in tqdm(test_loader):
 
         data, label = data.to(device), label.to(device).squeeze()
         data = data.permute(0, 2, 1)
@@ -262,9 +262,9 @@ if __name__ == "__main__":
     _init_()
 
     if args.eval or args.eval_corrupt:
-        io = IOStream('../checkpoints/' + args.exp_name + '/eval.log')
+        io = IOStream('checkpoints/' + args.exp_name + '/eval.log')
     else:
-        io = IOStream('../checkpoints/' + args.exp_name + '/run.log')
+        io = IOStream('checkpoints/' + args.exp_name + '/run.log')
     io.cprint(str(args))
     io.cprint('random seed is: ' + str(seed))
     
@@ -294,7 +294,7 @@ if __name__ == "__main__":
                                          batch_size=args.test_batch_size, shuffle=True, drop_last=False)
                 test_true = []
                 test_pred = []
-                for data, label in test_loader:
+                for data, label in tqdm(test_loader):
                     data, label = data.to(device), label.to(device).squeeze()
                     data = data.permute(0, 2, 1)
                     logits = model(data)
