@@ -104,7 +104,7 @@ def train(args, io):
                 data_np = data.cpu().numpy()
                 label_np = label.cpu().numpy()
                 
-                data, lam, label, label_b = rsmix_provider.rsmix(data, label, beta=args.beta, n_sample=n_sample,
+                data, lam, label, label_b = rsmix_provider.rsmix(data_np, label_np, beta=args.beta, n_sample=n_sample,
                                                                  KNN=args.knn)
 
                 data = torch.FloatTensor(data)
