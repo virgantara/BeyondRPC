@@ -126,7 +126,7 @@ def square_distance(src, dst):
     # dist += torch.sum(src ** 2, -1).view(B, N, 1)
     # dist += torch.sum(dst ** 2, -1).view(B, 1, M)
 
-    dist = -2 * np.matmul(src, dst.transpose(0, 2, 1))
+    dist = -2 * np.matmul(src, dst.transpose((0, 2, 1)))
     dist += np.sum(src ** 2, -1).reshape(B, N, 1)
     dist += np.sum(dst ** 2, -1).reshape(B, 1, M)
     
