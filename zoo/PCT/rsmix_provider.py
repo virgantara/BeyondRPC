@@ -125,7 +125,7 @@ def square_distance(src, dst):
         src = torch.from_numpy(src).float()
     if isinstance(dst, np.ndarray):
         dst = torch.from_numpy(dst).float()
-        
+
     B, N, _ = src.shape
     _, M, _ = dst.shape
     # dist = -2 * torch.matmul(src, dst.permute(0, 2, 1))
@@ -161,6 +161,12 @@ def pts_num_ctrl(pts_erase_idx, pts_add_idx):
     return pts_add_idx_ctrled
 
 def rsmix(data_batch, label_batch, beta=1.0, n_sample=512, KNN=False):
+
+    if isinstance(data_batch, np.ndarray):
+        data_batch = torch.from_numpy(data_batch).float()
+    if isinstance(label_batch, np.ndarray):
+        label_batch = torch.from_numpy(label_batch).long()
+        
     cut_rad = np.random.beta(beta, beta)
     rand_index = np.random.choice(data_batch.shape[0],data_batch.shape[0], replace=False) # label dim : (16,) for model
     
