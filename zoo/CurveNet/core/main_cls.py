@@ -47,7 +47,7 @@ def _init_():
         os.makedirs('checkpoints')
     if not os.path.exists('checkpoints/'+args.exp_name):
         os.makedirs('checkpoints/'+args.exp_name)
-    if not os.path.exists('../checkpoints/'+args.exp_name+'/'+'models'):
+    if not os.path.exists('checkpoints/'+args.exp_name+'/'+'models'):
         os.makedirs('checkpoints/'+args.exp_name+'/'+'models')
     os.system('cp main_cls.py checkpoints/'+args.exp_name+'/main_cls.py.backup')
     os.system('cp models/curvenet_cls.py checkpoints/'+args.exp_name+'/curvenet_cls.py.backup')
