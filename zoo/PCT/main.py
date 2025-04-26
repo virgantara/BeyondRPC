@@ -1,5 +1,7 @@
 from __future__ import print_function
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 import argparse
 import torch
 import torch.nn as nn
@@ -14,7 +16,8 @@ import sklearn.metrics as metrics
 import rsmix_provider
 import time
 from modelnetc_utils import eval_corrupt_wrapper, ModelNetC
-
+from tqdm import tqdm
+import wandb
 
 def _init_():
     if not os.path.exists('checkpoints'):
@@ -30,6 +33,7 @@ def _init_():
 
 
 def train(args, io):
+    wandb.init(project="UnderCorruption", name=args.exp_name)
     train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
                               num_workers=8,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
@@ -42,8 +46,21 @@ def train(args, io):
         model = RPC(args).to(device)
     else:
         model = Pct(args).to(device)
-    print(str(model))
+    # print(str(model))
+
+    if not args.use_initweight:
+        print("Use Pretrain")
+        state_dict = torch.load(args.pretrain_path)
+
+        # optionally: filter only keys that match
+        model_state_dict = model.state_dict()
+        pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
+
+        model_state_dict.update(pretrained_dict)
+        model.load_state_dict(model_state_dict)
+
     model = nn.DataParallel(model)
+    wandb.watch(model)
 
     if args.use_sgd:
         print("Use SGD")
@@ -54,11 +71,17 @@ def train(args, io):
 
     scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=args.lr)
 
+    total_params = sum(p.numel() for p in model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    print(f"Total parameters: {total_params / 1e6:.2f}M")
+    print(f"Trainable parameters: {trainable_params / 1e6:.2f}M")
+
     criterion = cal_loss
     best_test_acc = 0
 
     for epoch in range(args.epochs):
-        scheduler.step()
+        
         train_loss = 0.0
         count = 0.0
         model.train()
@@ -66,7 +89,9 @@ def train(args, io):
         train_true = []
         idx = 0
         total_time = 0.0
-        for data, label in train_loader:
+
+        wandb_log = {}
+        for data, label in tqdm(train_loader):
             '''
             implement augmentation
             '''
@@ -78,7 +103,7 @@ def train(args, io):
                 data, lam, label, label_b = rsmix_provider.rsmix(data, label, beta=args.beta, n_sample=args.nsample,
                                                                  KNN=args.knn)
             if args.rot or args.rdscale or args.shift or args.jitter or args.shuffle or args.rddrop or (
-                    args.beta is not 0.0):
+                    args.beta != 0.0):
                 data = torch.FloatTensor(data)
             if rsmix:
                 lam = torch.FloatTensor(lam)
@@ -120,13 +145,19 @@ def train(args, io):
         print('train total time is', total_time)
         train_true = np.concatenate(train_true)
         train_pred = np.concatenate(train_pred)
+        train_accuracy = metrics.accuracy_score(train_true, train_pred)
+        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
+
+        scheduler.step()
+
         outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f' % (epoch,
                                                                                  train_loss * 1.0 / count,
-                                                                                 metrics.accuracy_score(
-                                                                                     train_true, train_pred),
-                                                                                 metrics.balanced_accuracy_score(
-                                                                                     train_true, train_pred))
+                                                                                 train_accuracy,
+                                                                                 train_balanced_accuracy)
         io.cprint(outstr)
+        wandb_log['Train Loss'] = train_loss * 1.0 / count
+        wandb_log['Train Acc'] = train_accuracy
+        wandb_log['Train AVG Acc'] = train_balanced_accuracy
 
         ####################
         # Test
@@ -161,6 +192,11 @@ def train(args, io):
                                                                               test_acc,
                                                                               avg_per_class_acc)
         io.cprint(outstr)
+        wandb_log['Test Loss'] = test_loss*1.0/count
+        wandb_log['Test Acc'] = test_acc
+        wandb_log['Test AVG Acc'] = avg_per_class_acc
+        wandb.log(wandb_log)
+
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
             torch.save(model.state_dict(), 'checkpoints/%s/models/model.t7' % args.exp_name)
@@ -235,6 +271,15 @@ if __name__ == "__main__":
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
     parser.add_argument('--model', type=str, default='PCT', choices=['RPC', 'PCT'], help='choose model')
+    parser.add_argument('--fusion_type', type=str, default='concat',
+                    choices=['concat', 'add', 'gated', 'attention', 'crossattn'],
+                    help='Fusion strategy')
+    parser.add_argument('--use_residual', action='store_true',
+                    help='Enable residual connection after fusion')
+    parser.add_argument('--pretrain_path', type=str, default='', metavar='N',
+                        help='Pretrained model path AdaCROSSNET')
+    parser.add_argument('--use_initweight', action='store_true', default=False,
+                        help='Use Init Weight')
 
     # pointwolf
     parser.add_argument('--pw', action='store_true', help='use PointWOLF')

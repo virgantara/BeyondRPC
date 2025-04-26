@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from pointnet2.utils import pointnet2_utils
+# from pointnet2.utils import pointnet2_utils
 
 def cal_loss(pred, gold, smoothing=True):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
@@ -107,6 +107,29 @@ def knn_point(nsample, xyz, new_xyz):
     _, group_idx = torch.topk(sqrdists, nsample, dim = -1, largest=False, sorted=False)
     return group_idx
 
+def farthest_point_sample(xyz, npoint):
+    """
+    Input:
+        xyz: pointcloud data, [B, N, 3]
+        npoint: number of samples
+    Return:
+        centroids: sampled pointcloud index, [B, npoint]
+    """
+    device = xyz.device
+    B, N, C = xyz.shape
+    centroids = torch.zeros(B, npoint, dtype=torch.long).to(device)
+    distance = torch.ones(B, N).to(device) * 1e10
+    farthest = torch.randint(0, N, (B,), dtype=torch.long).to(device) * 0
+    batch_indices = torch.arange(B, dtype=torch.long).to(device)
+    for i in range(npoint):
+        centroids[:, i] = farthest
+        centroid = xyz[batch_indices, farthest, :].view(B, 1, 3)
+        dist = torch.sum((xyz - centroid) ** 2, -1)
+        mask = dist < distance
+        distance[mask] = dist[mask]
+        farthest = torch.max(distance, -1)[1]
+    return centroids
+
 def sample_and_group(npoint, radius, nsample, xyz, points):
     """
     Input:
@@ -123,7 +146,9 @@ def sample_and_group(npoint, radius, nsample, xyz, points):
     S = npoint 
     xyz = xyz.contiguous()
 
-    fps_idx = pointnet2_utils.furthest_point_sample(xyz, npoint).long() # [B, npoint]
+    fps_idx = farthest_point_sample(xyz, npoint).long()
+
+    # fps_idx = pointnet2_utils.furthest_point_sample(xyz, npoint).long() # [B, npoint]
     new_xyz = index_points(xyz, fps_idx) 
     new_points = index_points(points, fps_idx)
     # new_xyz = xyz[:]

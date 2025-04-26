@@ -18,8 +18,9 @@ def download():
         os.system('rm %s' % (zipfile))
 
 def load_data(partition):
-    download()
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    # download()
+    BASE_DIR = '/home/virgantara/PythonProjects/DualGraphPoint'
+    # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR = os.path.join(BASE_DIR, 'data')
     all_data = []
     all_label = []
