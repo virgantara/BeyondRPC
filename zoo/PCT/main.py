@@ -100,8 +100,17 @@ def train(args, io):
             r = np.random.rand(1)
             if args.beta > 0 and r < args.rsmix_prob:
                 rsmix = True
-                data, lam, label, label_b = rsmix_provider.rsmix(data, label, beta=args.beta, n_sample=args.nsample,
+                n_sample=int(args.nsample)
+                data_np = data.cpu().numpy()
+                label_np = label.cpu().numpy()
+                
+                data, lam, label, label_b = rsmix_provider.rsmix(data, label, beta=args.beta, n_sample=n_sample,
                                                                  KNN=args.knn)
+
+                data = torch.FloatTensor(data)
+                label = torch.LongTensor(label)
+                label_b = torch.LongTensor(label_b)
+                lam = torch.FloatTensor(lam)
             if args.rot or args.rdscale or args.shift or args.jitter or args.shuffle or args.rddrop or (
                     args.beta != 0.0):
                 data = torch.FloatTensor(data)
