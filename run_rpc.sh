@@ -1,0 +1,1 @@
+ python zoo/PCT/main.py --exp_name=exp_under_corr_wolfmix_rpc_base --epochs=200 --model=RPC --use_initweight --batch_size=64 --test_batch_size=32 --pw --beta=1.0
