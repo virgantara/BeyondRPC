@@ -47,7 +47,7 @@ class MultiScaleLocalOperator(nn.Module):
             x_k = F.adaptive_max_pool1d(x_k, N) # (B, 2*C, N)
             local_features.append(x_k)
 
-        x_multi = torch.stack(local_features, dim=1)  # (B, num_scales, 2*C, N)
+        x_multi = torch.cat(local_features, dim=1)  # (B, num_scales, 2*C, N)
 
         # 🚀 Lightweight attention across scales
         attention_scores = x_multi.mean(dim=3, keepdim=True)  # (B, num_scales, 2*C, 1)
