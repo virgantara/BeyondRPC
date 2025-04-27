@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from util import sample_and_group
 from GDANet_cls import GDM, local_operator, SGCAM
-from curvenet_util import CIC
+from curvenet_util import CIC, LPFA
 
 class Local_op(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -24,10 +24,11 @@ class Local_op(nn.Module):
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from curvenet_util import LPFA, CIC
+curve_config = {
+        'default': [[100, 5], [100, 5], None, None],
+        'long':  [[10, 30], None,  None,  None]
+    }
+
 
 class CurveModuleForRPC(nn.Module):
     def __init__(self, k=20, setting='default'):
@@ -145,6 +146,8 @@ class RPCV2(nn.Module):
         y1s = self.SGCAM_1s(x1, x1s.transpose(2, 1))
         y1g = self.SGCAM_1g(x1, x1g.transpose(2, 1))
         feature_1 = torch.cat([y1s, y1g], 1)
+
+        feature_1 = F.adaptive_max_pool1d(feature_1, 64)  # (B, 256, 64)
 
         x = self.pt_last(feature_1)
 
