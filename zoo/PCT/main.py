@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from data import ModelNet40
-from model import Pct, RPC, RPCMSLG
+from model import Pct, RPC, RPCV2
 import numpy as np
 from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
@@ -44,8 +44,8 @@ def train(args, io):
 
     if args.model == 'RPC':
         model = RPC(args).to(device)
-    elif args.model == 'RPCMSLG':
-        model = RPCMSLG(args).to(device)
+    elif args.model == 'RPCV2':
+        model = RPCV2(args).to(device)
     else:
         model = Pct(args).to(device)
     # print(str(model))
@@ -282,7 +282,7 @@ if __name__ == "__main__":
                         help='dropout rate')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
-    parser.add_argument('--model', type=str, default='PCT', choices=['RPC', 'PCT', 'RPCMSLG'], help='choose model')
+    parser.add_argument('--model', type=str, default='PCT', choices=['RPC', 'PCT', 'RPCV2'], help='choose model')
     parser.add_argument('--fusion_type', type=str, default='concat',
                     choices=['concat', 'add', 'gated', 'attention', 'crossattn'],
                     help='Fusion strategy')

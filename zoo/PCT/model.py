@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from util import sample_and_group
 from GDANet_cls import GDM, local_operator, SGCAM
+from curvenet_util import CIC
 
 class Local_op(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -58,23 +59,32 @@ class MultiScaleLocalOperator(nn.Module):
 
         return x_multi
 
-class RPCMSLG(nn.Module):
+class RPCV2(nn.Module):
     def __init__(self, args, output_channels=40, k_scales=[20,30,40]):
-        super(RPCMSLG, self).__init__()
+        super(RPCV2, self).__init__()
         self.args = args
-
-        self.multi_scale_local = MultiScaleLocalOperator(k_scales=k_scales)
 
         self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
         self.bn11 = nn.BatchNorm2d(128, momentum=0.1)
         self.bn12 = nn.BatchNorm1d(256, momentum=0.1)
 
-        input_channels = 2 * 3 * len(k_scales)
-
-        self.conv1 = nn.Sequential(nn.Conv2d(input_channels, 64, kernel_size=1, bias=True),
+        self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=True),
                                    self.bn1)
         self.conv11 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=True),
                                     self.bn11)
+
+        # === CurveNet CIC module after early conv ===
+        self.cic = CIC(
+            npoint=512,             # sampled points
+            radius=0.2,             # ball query radius
+            k=32,                   # kNN neighbors
+            in_channels=128,        # match conv11 output
+            output_channels=128,    # same for consistency
+            bottleneck_ratio=2,
+            mlp_num=2,
+            curve_config=[32, 4]    # (curve_num=32, curve_length=4)
+        )
+
         self.SGCAM_1s = SGCAM(128)
         self.SGCAM_1g = SGCAM(128)
 
@@ -94,18 +104,14 @@ class RPCMSLG(nn.Module):
 
     def forward(self, x):
         batch_size, _, _ = x.size()
-
-        
-        # Multi-scale local grouping
-        x1 = self.multi_scale_local(x)  # (B, 18, N) → 6 features * 3 scales
+s
 
         x1 = F.relu(self.conv1(x1))
         x1 = F.relu(self.conv11(x1))
-        # print(x1.size())
-        x1 = x1.squeeze(-1)
-        # x1 = x1.max(dim=-1, keepdim=False)[0]
-
-        # print(x1.size())
+        
+        # === Apply CurveNet CIC ===
+        xyz = x[:, :3, :]                            # Use original input coordinates
+        _, x1 = self.cic(xyz, x1)                    # (B, 128, npoint=512)
 
         # Geometry-Disentangle Module:
         x1s, x1g = GDM(x1, M=256)
@@ -116,10 +122,6 @@ class RPCMSLG(nn.Module):
         feature_1 = torch.cat([y1s, y1g], 1)
 
         x = self.pt_last(feature_1)
-
-        # Global Context Injection
-        global_context = torch.max(x, dim=2, keepdim=True)[0]  # (B, 1024, 1)
-        x = x + global_context
 
         x = torch.cat([x, feature_1], dim=1)
         x = self.conv_fuse(x)
