@@ -40,30 +40,32 @@ class MultiScaleLocalOperator(nn.Module):
         local_features = []
 
         for k in self.k_scales:
-            x_k = local_operator(x, k=k)    # (B, N, k, 6)
-            x_k = x_k.permute(0, 3, 1, 2)    # (B, 6, N, k)
-            x_k = x_k.reshape(B, 6, N * k)   # flatten k into N dimension
-
-            x_k = F.adaptive_max_pool1d(x_k, N)  # pool back to (B, 6, N)
+            x_k = local_operator(x, k=k)    # (B, 2*C, N, k)
+            x_k = x_k.reshape(B, 2*C, N * k)  # Flatten neighbor dim
+            x_k = F.adaptive_max_pool1d(x_k, N)  # (B, 2*C, N)
             local_features.append(x_k)
 
+
         x_multi = torch.cat(local_features, dim=1)  # (B, 6 * len(k_scales), N)
+        x_multi = x_multi.unsqueeze(-1)  # (B, channels, N, 1)
         return x_multi
 
 class RPCMSLG(nn.Module):
-    def __init__(self, args, output_channels=40):
+    def __init__(self, args, output_channels=40, k_scales=[20,30,40]):
         super(RPCMSLG, self).__init__()
         self.args = args
 
-        self.multi_scale_local = MultiScaleLocalOperator(k_scales=[20, 30, 40])
+        self.multi_scale_local = MultiScaleLocalOperator(k_scales=k_scales)
 
-        self.bn1 = nn.BatchNorm1d(64, momentum=0.1)
-        self.bn11 = nn.BatchNorm1d(128, momentum=0.1)
+        self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
+        self.bn11 = nn.BatchNorm2d(128, momentum=0.1)
         self.bn12 = nn.BatchNorm1d(256, momentum=0.1)
 
-        self.conv1 = nn.Sequential(nn.Conv1d(18, 64, kernel_size=1, bias=True),
+        input_channels = 2 * 3 * len(k_scales)
+
+        self.conv1 = nn.Sequential(nn.Conv2d(input_channels, 64, kernel_size=1, bias=True),
                                    self.bn1)
-        self.conv11 = nn.Sequential(nn.Conv1d(64, 128, kernel_size=1, bias=True),
+        self.conv11 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=True),
                                     self.bn11)
         self.SGCAM_1s = SGCAM(128)
         self.SGCAM_1g = SGCAM(128)
@@ -91,6 +93,7 @@ class RPCMSLG(nn.Module):
 
         x1 = F.relu(self.conv1(x1))
         x1 = F.relu(self.conv11(x1))
+        x1 = x1.squeeze(-1)
         x1 = x1.max(dim=-1, keepdim=False)[0]
 
         # Geometry-Disentangle Module:
