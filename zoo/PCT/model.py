@@ -93,8 +93,11 @@ class RPCMSLG(nn.Module):
 
         x1 = F.relu(self.conv1(x1))
         x1 = F.relu(self.conv11(x1))
+        # print(x1.size())
         x1 = x1.squeeze(-1)
-        x1 = x1.max(dim=-1, keepdim=False)[0]
+        # x1 = x1.max(dim=-1, keepdim=False)[0]
+
+        # print(x1.size())
 
         # Geometry-Disentangle Module:
         x1s, x1g = GDM(x1, M=256)
