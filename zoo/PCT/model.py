@@ -23,10 +23,36 @@ class Local_op(nn.Module):
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
 
+class MultiScaleLocalOperator(nn.Module):
+    def __init__(self, k_scales=[20, 30, 40]):
+        super(MultiScaleLocalOperator, self).__init__()
+        self.k_scales = k_scales
+
+    def forward(self, x):
+        """
+        Args:
+            x: (B, 3, N) input point cloud
+
+        Returns:
+            x_multi: (B, 6 * len(k_scales), N) concatenated multi-scale local features
+        """
+        B, C, N = x.size()
+        local_features = []
+
+        for k in self.k_scales:
+            x_k = local_operator(x, k=k)        # (B, 6, k) per local neighborhood
+            x_k = F.adaptive_max_pool1d(x_k, N)  # pool back to (B, 6, N)
+            local_features.append(x_k)
+
+        x_multi = torch.cat(local_features, dim=1)  # concat across channel dimension
+        return x_multi  # (B, 6 * len(k_scales), N)
+
 class RPCMSLG(nn.Module):
     def __init__(self, args, output_channels=40):
         super(RPCMSLG, self).__init__()
         self.args = args
+
+        self.multi_scale_local = MultiScaleLocalOperator(k_scales=[20, 30, 40])
 
         self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
         self.bn11 = nn.BatchNorm2d(128, momentum=0.1)
@@ -54,20 +80,11 @@ class RPCMSLG(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
 
     def forward(self, x):
-        batch_size, _, N = x.size()
+        batch_size, _, _ = x.size()
 
         
         # Multi-scale local grouping
-        x1_k20 = local_operator(x, k=20)
-        x1_k20 = F.adaptive_max_pool1d(x1_k20, N)
-
-        x1_k30 = local_operator(x, k=30)
-        x1_k30 = F.adaptive_max_pool1d(x1_k30, N)
-        
-        x1_k40 = local_operator(x, k=40)
-        x1_k40 = F.adaptive_max_pool1d(x1_k40, N)
-        
-        x1 = torch.cat([x1_k20, x1_k30, x1_k40], dim=1)  # (B, 6*3, N)
+        x1 = self.multi_scale_local(x)  # (B, 18, N) → 6 features * 3 scales
 
         x1 = F.relu(self.conv1(x1))
         x1 = F.relu(self.conv11(x1))
