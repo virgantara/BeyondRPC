@@ -40,12 +40,15 @@ class MultiScaleLocalOperator(nn.Module):
         local_features = []
 
         for k in self.k_scales:
-            x_k = local_operator(x, k=k)        # (B, 6, k) per local neighborhood
+            x_k = local_operator(x, k=k)    # (B, N, k, 6)
+            x_k = x_k.permute(0, 3, 1, 2)    # (B, 6, N, k)
+            x_k = x_k.reshape(B, 6, N * k)   # flatten k into N dimension
+
             x_k = F.adaptive_max_pool1d(x_k, N)  # pool back to (B, 6, N)
             local_features.append(x_k)
 
-        x_multi = torch.cat(local_features, dim=1)  # concat across channel dimension
-        return x_multi  # (B, 6 * len(k_scales), N)
+        x_multi = torch.cat(local_features, dim=1)  # (B, 6 * len(k_scales), N)
+        return x_multi
 
 class RPCMSLG(nn.Module):
     def __init__(self, args, output_channels=40):
