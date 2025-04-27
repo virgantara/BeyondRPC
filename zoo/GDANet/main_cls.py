@@ -1,18 +1,21 @@
 from __future__ import print_function
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
+
 import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from zoo.GDANet.util.data_util import ModelNet40
-from zoo.GDANet.model.GDANet_cls import GDANET
+from util.data_util import ModelNet40
+from model.GDANet_cls import GDANET
 import numpy as np
 from torch.utils.data import DataLoader
-from zoo.GDANet.util.util import cal_loss, IOStream
+from util.util import cal_loss, IOStream
 import sklearn.metrics as metrics
 from datetime import datetime
-import zoo.GDANet.provider
+import provider
 import rsmix_provider
 from modelnetc_utils import eval_corrupt_wrapper, ModelNetC
 from tqdm import tqdm
@@ -120,7 +123,7 @@ def train(args, io):
             # for new augmentation code, remove squeeze because it will be applied after augmentation.
             # default from baseline model, scale, shift, shuffle was default augmentation
             if args.rot or args.rdscale or args.shift or args.jitter or args.shuffle or args.rddrop or (
-                    args.beta is not 0.0):
+                    args.beta != 0.0):
                 data = data.cpu().numpy()
             if args.rot:
                 data = provider.rotate_point_cloud(data)
@@ -144,7 +147,7 @@ def train(args, io):
                 data, lam, label, label_b = rsmix_provider.rsmix(data, label, beta=args.beta, n_sample=args.nsample,
                                                                  KNN=args.knn)
             if args.rot or args.rdscale or args.shift or args.jitter or args.shuffle or args.rddrop or (
-                    args.beta is not 0.0):
+                    args.beta != 0.0):
                 data = torch.FloatTensor(data)
             if rsmix:
                 lam = torch.FloatTensor(lam)
