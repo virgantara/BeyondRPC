@@ -54,7 +54,7 @@ class RPCMSLG(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
 
     def forward(self, x):
-        batch_size, _, _ = x.size()
+        batch_size, _, N = x.size()
 
         
         # Multi-scale local grouping
