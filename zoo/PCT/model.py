@@ -50,15 +50,11 @@ class MultiScaleLocalOperator(nn.Module):
         x_multi = torch.cat(local_features, dim=1)  # (B, num_scales, 2*C, N)
 
         # 🚀 Lightweight attention across scales
-        attention_scores = x_multi.mean(dim=3, keepdim=True)  # (B, num_scales, 2*C, 1)
-        attention_scores = attention_scores.mean(dim=2, keepdim=True)  # (B, num_scales, 1, 1)
-        attention_weights = F.softmax(attention_scores, dim=1)  # (B, num_scales, 1, 1)
+        attention_scores = x_multi.mean(dim=2, keepdim=True)  # (B, 2*C*len(k_scales), 1)
+        attention_weights = torch.sigmoid(attention_scores)   # (B, 2*C*len(k_scales), 1)
+        x_multi = x_multi * attention_weights
 
-        # Apply attention to each scale
-        x_multi = (x_multi * attention_weights).sum(dim=1)  # (B, 2*C, N)
-
-        # Unsqueeze for Conv2d
-        x_multi = x_multi.unsqueeze(-1)  # (B, 2*C, N, 1)
+        x_multi = x_multi.unsqueeze(-1)  # (B, 2*C*len(k_scales), N, 1)
 
         return x_multi
 
