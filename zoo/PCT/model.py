@@ -59,8 +59,14 @@ class RPCMSLG(nn.Module):
         
         # Multi-scale local grouping
         x1_k20 = local_operator(x, k=20)
+        x1_k20 = F.adaptive_max_pool1d(x1_k20, N)
+
         x1_k30 = local_operator(x, k=30)
+        x1_k30 = F.adaptive_max_pool1d(x1_k30, N)
+        
         x1_k40 = local_operator(x, k=40)
+        x1_k40 = F.adaptive_max_pool1d(x1_k40, N)
+        
         x1 = torch.cat([x1_k20, x1_k30, x1_k40], dim=1)  # (B, 6*3, N)
 
         x1 = F.relu(self.conv1(x1))
