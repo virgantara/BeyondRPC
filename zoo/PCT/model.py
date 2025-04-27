@@ -61,9 +61,9 @@ class RPCMSLG(nn.Module):
         self.bn11 = nn.BatchNorm2d(128, momentum=0.1)
         self.bn12 = nn.BatchNorm1d(256, momentum=0.1)
 
-        self.conv1 = nn.Sequential(nn.Conv2d(18, 64, kernel_size=1, bias=True),
+        self.conv1 = nn.Sequential(nn.Conv1d(18, 64, kernel_size=1, bias=True),
                                    self.bn1)
-        self.conv11 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=True),
+        self.conv11 = nn.Sequential(nn.Conv1d(64, 128, kernel_size=1, bias=True),
                                     self.bn11)
         self.SGCAM_1s = SGCAM(128)
         self.SGCAM_1g = SGCAM(128)
