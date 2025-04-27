@@ -23,31 +23,43 @@ class Local_op(nn.Module):
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
 
+
 class MultiScaleLocalOperator(nn.Module):
     def __init__(self, k_scales=[20, 30, 40]):
         super(MultiScaleLocalOperator, self).__init__()
         self.k_scales = k_scales
+        self.num_scales = len(k_scales)
 
     def forward(self, x):
         """
         Args:
-            x: (B, 3, N) input point cloud
+            x: (B, C, N) input point cloud
 
         Returns:
-            x_multi: (B, 6 * len(k_scales), N) concatenated multi-scale local features
+            x_multi: (B, 2*C, N, 1) weighted and fused local features
         """
         B, C, N = x.size()
         local_features = []
 
         for k in self.k_scales:
-            x_k = local_operator(x, k=k)    # (B, 2*C, N, k)
-            x_k = x_k.reshape(B, 2*C, N * k)  # Flatten neighbor dim
-            x_k = F.adaptive_max_pool1d(x_k, N)  # (B, 2*C, N)
+            x_k = local_operator(x, k=k)      # (B, 2*C, N, k)
+            x_k = x_k.reshape(B, 2*C, N * k)   # Flatten neighbor dim
+            x_k = F.adaptive_max_pool1d(x_k, N) # (B, 2*C, N)
             local_features.append(x_k)
 
+        x_multi = torch.stack(local_features, dim=1)  # (B, num_scales, 2*C, N)
 
-        x_multi = torch.cat(local_features, dim=1)  # (B, 6 * len(k_scales), N)
-        x_multi = x_multi.unsqueeze(-1)  # (B, channels, N, 1)
+        # 🚀 Lightweight attention across scales
+        attention_scores = x_multi.mean(dim=3, keepdim=True)  # (B, num_scales, 2*C, 1)
+        attention_scores = attention_scores.mean(dim=2, keepdim=True)  # (B, num_scales, 1, 1)
+        attention_weights = F.softmax(attention_scores, dim=1)  # (B, num_scales, 1, 1)
+
+        # Apply attention to each scale
+        x_multi = (x_multi * attention_weights).sum(dim=1)  # (B, 2*C, N)
+
+        # Unsqueeze for Conv2d
+        x_multi = x_multi.unsqueeze(-1)  # (B, 2*C, N, 1)
+
         return x_multi
 
 class RPCMSLG(nn.Module):
