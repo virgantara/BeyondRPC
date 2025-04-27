@@ -104,10 +104,11 @@ class RPCV2(nn.Module):
 
     def forward(self, x):
         batch_size, _, _ = x.size()
-s
 
+        x1 = local_operator(x, k=30)
         x1 = F.relu(self.conv1(x1))
         x1 = F.relu(self.conv11(x1))
+        x1 = x1.max(dim=-1, keepdim=False)[0]
         
         # === Apply CurveNet CIC ===
         xyz = x[:, :3, :]                            # Use original input coordinates

@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from time import time
 import numpy as np
 
-from .walk import Walk
+from walk import Walk
 
 
 def knn(x, k):
