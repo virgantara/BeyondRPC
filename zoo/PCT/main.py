@@ -342,6 +342,8 @@ if __name__ == "__main__":
         device = torch.device("cuda" if args.cuda else "cpu")
         if args.model == 'RPC':
             model = RPC(args).to(device)
+        elif args.model == 'RPCV2':
+            model = RPCV2(args).to(device)
         else:
             model = Pct(args).to(device)
         model = nn.DataParallel(model)
