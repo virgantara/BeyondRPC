@@ -57,8 +57,8 @@ class RPCMSLG(nn.Module):
 
         self.multi_scale_local = MultiScaleLocalOperator(k_scales=[20, 30, 40])
 
-        self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
-        self.bn11 = nn.BatchNorm2d(128, momentum=0.1)
+        self.bn1 = nn.BatchNorm1d(64, momentum=0.1)
+        self.bn11 = nn.BatchNorm1d(128, momentum=0.1)
         self.bn12 = nn.BatchNorm1d(256, momentum=0.1)
 
         self.conv1 = nn.Sequential(nn.Conv1d(18, 64, kernel_size=1, bias=True),
