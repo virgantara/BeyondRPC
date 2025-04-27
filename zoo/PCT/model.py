@@ -24,76 +24,8 @@ class Local_op(nn.Module):
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
 
-curve_config = {
-        'default': [[100, 5], [100, 5], None, None],
-        'long':  [[10, 30], None,  None,  None]
-    }
-
-
-class CurveModuleForRPC(nn.Module):
-    def __init__(self, k=20, setting='default'):
-        super(CurveModuleForRPC, self).__init__()
-
-        assert setting in curve_config  # you must provide curve_config!
-
-        additional_channel = 32
-        self.lpfa = LPFA(9, additional_channel, k=k, mlp_num=1, initial=True)
-
-        # encoder like CurveNet
-        self.cic11 = CIC(npoint=1024, radius=0.05, k=k, in_channels=additional_channel, output_channels=64,
-                         bottleneck_ratio=2, mlp_num=1, curve_config=curve_config[setting][0])
-        self.cic12 = CIC(npoint=1024, radius=0.05, k=k, in_channels=64, output_channels=64,
-                         bottleneck_ratio=4, mlp_num=1, curve_config=curve_config[setting][0])
-
-        self.cic21 = CIC(npoint=1024, radius=0.05, k=k, in_channels=64, output_channels=128,
-                         bottleneck_ratio=2, mlp_num=1, curve_config=curve_config[setting][1])
-        self.cic22 = CIC(npoint=1024, radius=0.1, k=k, in_channels=128, output_channels=128,
-                         bottleneck_ratio=4, mlp_num=1, curve_config=curve_config[setting][1])
-
-        self.cic31 = CIC(npoint=256, radius=0.1, k=k, in_channels=128, output_channels=256,
-                         bottleneck_ratio=2, mlp_num=1, curve_config=curve_config[setting][2])
-        self.cic32 = CIC(npoint=256, radius=0.2, k=k, in_channels=256, output_channels=256,
-                         bottleneck_ratio=4, mlp_num=1, curve_config=curve_config[setting][2])
-
-        self.cic41 = CIC(npoint=64, radius=0.2, k=k, in_channels=256, output_channels=512,
-                         bottleneck_ratio=2, mlp_num=1, curve_config=curve_config[setting][3])
-        self.cic42 = CIC(npoint=64, radius=0.4, k=k, in_channels=512, output_channels=512,
-                         bottleneck_ratio=4, mlp_num=1, curve_config=curve_config[setting][3])
-
-        self.conv_fuse = nn.Sequential(
-            nn.Conv1d(512, 512, kernel_size=1, bias=False),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True)
-        )
-
-    def forward(self, xyz):
-        """
-        Input:
-            xyz: (B, 3, N) - only coordinates
-        Output:
-            features: (B, 512, npoint) without final pooling
-        """
-        l0_points = self.lpfa(xyz, xyz)  # (B, additional_channel, N)
-
-        l1_xyz, l1_points = self.cic11(xyz, l0_points)
-        l1_xyz, l1_points = self.cic12(l1_xyz, l1_points)
-
-        l2_xyz, l2_points = self.cic21(l1_xyz, l1_points)
-        l2_xyz, l2_points = self.cic22(l2_xyz, l2_points)
-
-        l3_xyz, l3_points = self.cic31(l2_xyz, l2_points)
-        l3_xyz, l3_points = self.cic32(l3_xyz, l3_points)
-
-        l4_xyz, l4_points = self.cic41(l3_xyz, l3_points)
-        l4_xyz, l4_points = self.cic42(l4_xyz, l4_points)
-
-        features = self.conv_fuse(l4_points)  # (B, 512, 64)
-
-        return features
-
-
 class RPCV2(nn.Module):
-    def __init__(self, args, output_channels=40, k_scales=[20,30,40]):
+    def __init__(self, args, output_channels=40):
         super(RPCV2, self).__init__()
         self.args = args
 
@@ -105,18 +37,17 @@ class RPCV2(nn.Module):
                                    self.bn1)
         self.conv11 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=True),
                                     self.bn11)
-
-        # === Full CurveModule inside ===
-        self.curve_module = CurveModuleForRPC(k=20, setting='default')
-
         self.SGCAM_1s = SGCAM(128)
         self.SGCAM_1g = SGCAM(128)
 
         self.pt_last = Point_Transformer_Last(args)
 
-        self.conv_fuse = nn.Sequential(nn.Conv1d(1280 + 512, 1024, kernel_size=1, bias=False),
+        self.conv_fuse = nn.Sequential(nn.Conv1d(1280, 1024, kernel_size=1, bias=False),
                                        nn.BatchNorm1d(1024),
                                        nn.LeakyReLU(negative_slope=0.2))
+
+        self.weight_x = nn.Parameter(torch.ones(1))
+        self.weight_feature_1 = nn.Parameter(torch.ones(1))
 
         self.linear1 = nn.Linear(1024, 512, bias=False)
         self.bn6 = nn.BatchNorm1d(512)
@@ -133,11 +64,6 @@ class RPCV2(nn.Module):
         x1 = F.relu(self.conv1(x1))
         x1 = F.relu(self.conv11(x1))
         x1 = x1.max(dim=-1, keepdim=False)[0]
-        
-        
-        xyz = x[:, :3, :]                            # Use original input coordinates
-        # === Get CurveModule features
-        curve_feat = self.curve_module(xyz)  # (B, 512, 64)
 
         # Geometry-Disentangle Module:
         x1s, x1g = GDM(x1, M=256)
@@ -147,11 +73,14 @@ class RPCV2(nn.Module):
         y1g = self.SGCAM_1g(x1, x1g.transpose(2, 1))
         feature_1 = torch.cat([y1s, y1g], 1)
 
-        feature_1 = F.adaptive_max_pool1d(feature_1, 64)  # (B, 256, 64)
-
         x = self.pt_last(feature_1)
 
-        x = torch.cat([x, feature_1, curve_feat], dim=1)
+        # --- Learnable Weighting ---
+        weights = torch.softmax(torch.cat([self.weight_x, self.weight_feature_1], dim=0), dim=0)
+        norm_weight_x = weights[0]
+        norm_weight_feature_1 = weights[1]
+
+        x = torch.cat([x * norm_weight_x, feature_1 * norm_weight_feature_1], dim=1)
         x = self.conv_fuse(x)
         x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
         x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2)
