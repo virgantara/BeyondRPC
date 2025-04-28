@@ -40,14 +40,12 @@ class RPCV2(nn.Module):
         self.SGCAM_1s = SGCAM(128)
         self.SGCAM_1g = SGCAM(128)
 
-        self.pt_last = Point_Transformer_Last(args)
+        self.pt_last = StackedAttention(args)
 
-        self.conv_fuse = nn.Sequential(nn.Conv1d(1280, 1024, kernel_size=1, bias=False),
+        # input channels = 6 layers tranformers
+        self.conv_fuse = nn.Sequential(nn.Conv1d(1280 + 256, 1024, kernel_size=1, bias=False),
                                        nn.BatchNorm1d(1024),
                                        nn.LeakyReLU(negative_slope=0.2))
-
-        self.weight_x = nn.Parameter(torch.ones(1))
-        self.weight_feature_1 = nn.Parameter(torch.ones(1))
 
         self.linear1 = nn.Linear(1024, 512, bias=False)
         self.bn6 = nn.BatchNorm1d(512)
@@ -75,12 +73,7 @@ class RPCV2(nn.Module):
 
         x = self.pt_last(feature_1)
 
-        # --- Learnable Weighting ---
-        weights = torch.softmax(torch.cat([self.weight_x, self.weight_feature_1], dim=0), dim=0)
-        norm_weight_x = weights[0]
-        norm_weight_feature_1 = weights[1]
-
-        x = torch.cat([x * norm_weight_x, feature_1 * norm_weight_feature_1], dim=1)
+        x = torch.cat([x, feature_1], dim=1)
         x = self.conv_fuse(x)
         x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
         x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2)
@@ -199,6 +192,45 @@ class Pct(nn.Module):
         x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2)
         x = self.dp2(x)
         x = self.linear3(x)
+
+        return x
+
+
+class StackedAttention(nn.Module):
+    def __init__(self, args, channels=256):
+        super(StackedAttention, self).__init__()
+        self.args = args
+        self.conv1 = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv1d(channels, channels, kernel_size=1, bias=False)
+
+        self.bn1 = nn.BatchNorm1d(channels)
+        self.bn2 = nn.BatchNorm1d(channels)
+
+        self.sa1 = SA_Layer(channels)
+        self.sa2 = SA_Layer(channels)
+        self.sa3 = SA_Layer(channels)
+        self.sa4 = SA_Layer(channels)
+        self.sa5 = SA_Layer(channels)
+        self.sa6 = SA_Layer(channels)
+
+    def forward(self, x):
+        # 
+        # b, 3, npoint, nsample  
+        # conv2d 3 -> 128 channels 1, 1
+        # b * npoint, c, nsample 
+        # permute reshape
+        batch_size, _, N = x.size()
+
+        # B, D, N
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x1 = self.sa1(x)
+        x2 = self.sa2(x1)
+        x3 = self.sa3(x2)
+        x4 = self.sa4(x3)
+        x5 = self.sa5(x4)
+        x6 = self.sa6(x5)
+        x = torch.cat((x1, x2, x3, x4, x5, x6), dim=1)
 
         return x
 
