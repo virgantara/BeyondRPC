@@ -43,7 +43,7 @@ class RPCV2(nn.Module):
         self.pt_last = StackedAttention(args)
 
         # input channels = 6 layers tranformers
-        self.conv_fuse = nn.Sequential(nn.Conv1d(1280 + 256, 1024, kernel_size=1, bias=False),
+        self.conv_fuse = nn.Sequential(nn.Conv1d(1280 + 512, 1024, kernel_size=1, bias=False),
                                        nn.BatchNorm1d(1024),
                                        nn.LeakyReLU(negative_slope=0.2))
 
