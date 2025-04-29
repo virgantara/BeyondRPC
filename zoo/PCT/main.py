@@ -33,7 +33,7 @@ def _init_():
 
 
 def train(args, io):
-    # wandb.init(project="UnderCorruption", name=args.exp_name)
+    wandb.init(project="UnderCorruption", name=args.exp_name)
     train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
                               num_workers=8,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
@@ -64,7 +64,7 @@ def train(args, io):
         model.load_state_dict(model_state_dict)
 
     model = nn.DataParallel(model)
-    # wandb.watch(model)
+    wandb.watch(model)
 
     if args.use_sgd:
         print("Use SGD")
@@ -212,7 +212,7 @@ def train(args, io):
         wandb_log['Test Loss'] = test_loss*1.0/count
         wandb_log['Test Acc'] = test_acc
         wandb_log['Test AVG Acc'] = avg_per_class_acc
-        # wandb.log(wandb_log)
+        wandb.log(wandb_log)
 
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
