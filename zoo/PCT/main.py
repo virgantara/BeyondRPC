@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from data import ModelNet40
-from model import Pct, RPC, RPCV2
+from model import Pct, RPC, RPCV2, PointTransformerCls
 import numpy as np
 from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
@@ -33,7 +33,7 @@ def _init_():
 
 
 def train(args, io):
-    wandb.init(project="UnderCorruption", name=args.exp_name)
+    # wandb.init(project="UnderCorruption", name=args.exp_name)
     train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
                               num_workers=8,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
@@ -46,6 +46,8 @@ def train(args, io):
         model = RPC(args).to(device)
     elif args.model == 'RPCV2':
         model = RPCV2(args).to(device)
+    elif args.model == 'PT':
+        model = PointTransformerCls(args).to(device)
     else:
         model = Pct(args).to(device)
     # print(str(model))
@@ -62,7 +64,7 @@ def train(args, io):
         model.load_state_dict(model_state_dict)
 
     model = nn.DataParallel(model)
-    wandb.watch(model)
+    # wandb.watch(model)
 
     if args.use_sgd:
         print("Use SGD")
@@ -94,6 +96,8 @@ def train(args, io):
 
         wandb_log = {}
         for data, label in tqdm(train_loader):
+            # Data (B, N, 3)
+            # label (B, 1)
             '''
             implement augmentation
             '''
@@ -135,7 +139,9 @@ def train(args, io):
                     loss += loss_tmp
                 loss = loss / batch_size
             else:
-                data = data.permute(0, 2, 1)
+                data = data.permute(0, 2, 1) # (B, 3, N)
+                
+            
                 batch_size = data.size()[0]
                 opt.zero_grad()
                 start_time = time.time()
@@ -206,7 +212,7 @@ def train(args, io):
         wandb_log['Test Loss'] = test_loss*1.0/count
         wandb_log['Test Acc'] = test_acc
         wandb_log['Test AVG Acc'] = avg_per_class_acc
-        wandb.log(wandb_log)
+        # wandb.log(wandb_log)
 
         if test_acc >= best_test_acc:
             best_test_acc = test_acc
@@ -282,7 +288,7 @@ if __name__ == "__main__":
                         help='dropout rate')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
-    parser.add_argument('--model', type=str, default='PCT', choices=['RPC', 'PCT', 'RPCV2'], help='choose model')
+    parser.add_argument('--model', type=str, default='PCT', choices=['RPC', 'PCT', 'RPCV2', 'PT'], help='choose model')
     parser.add_argument('--fusion_type', type=str, default='concat',
                     choices=['concat', 'add', 'gated', 'attention', 'crossattn'],
                     help='Fusion strategy')
