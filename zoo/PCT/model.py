@@ -101,48 +101,31 @@ class PointTransformerCls(nn.Module):
         x = self.linear3(x)
 
         return x
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
 
-class RPCV2(nn.Module):
+
+
+class RPC(nn.Module):
     def __init__(self, args, output_channels=40):
-        super(RPCV2, self).__init__()
+        super(RPC, self).__init__()
         self.args = args
 
-        input_dim = 3
-        self.relu = nn.ReLU()
+        self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
+        self.bn11 = nn.BatchNorm2d(128, momentum=0.1)
+        self.bn12 = nn.BatchNorm1d(256, momentum=0.1)
 
-        # Initial Point Transformer encoding
-        self.convpt_1 = nn.Conv1d(input_dim, 64, kernel_size=1, bias=False)
-        self.bnpt_1 = nn.BatchNorm1d(64)
-        self.convpt_2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
-        self.bnpt_2 = nn.BatchNorm1d(64)
-
-        self.gather_local_0 = Local_op(in_channels=128, out_channels=128)
-        self.gather_local_1 = Local_op(in_channels=256, out_channels=256)
-
-        # RPC-style local encoding
         self.conv1 = nn.Sequential(nn.Conv2d(6, 64, kernel_size=1, bias=True),
-                                   nn.BatchNorm2d(64))
+                                   self.bn1)
         self.conv11 = nn.Sequential(nn.Conv2d(64, 128, kernel_size=1, bias=True),
-                                    nn.BatchNorm2d(128))
-
+                                    self.bn11)
         self.SGCAM_1s = SGCAM(128)
         self.SGCAM_1g = SGCAM(128)
 
-        # Dual StackedAttention modules
-        self.pt_pct = StackedAttention()
-        self.pt_gdm = StackedAttention()
+        self.pt_last = StackedAttention()
 
-        # Fusion gate
-        self.fusion_gate = nn.Sequential(
-            nn.Conv1d(2048, 1024, kernel_size=1, bias=False),
-            nn.BatchNorm1d(1024),
-            nn.Sigmoid()
-        )
+        self.conv_fuse = nn.Sequential(nn.Conv1d(1280, 1024, kernel_size=1, bias=False),
+                                       nn.BatchNorm1d(1024),
+                                       nn.LeakyReLU(negative_slope=0.2))
 
-        # Classifier head
         self.linear1 = nn.Linear(1024, 512, bias=False)
         self.bn6 = nn.BatchNorm1d(512)
         self.dp1 = nn.Dropout(p=args.dropout)
@@ -152,40 +135,25 @@ class RPCV2(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
 
     def forward(self, x):
-        points = x  # [B, N, 6]
-        x = x.permute(0, 2, 1)
-        xyz = x[..., :3]
-        x = self.relu(self.bnpt_1(self.convpt_1(x)))  # [B, 64, N]
-        x = self.relu(self.bnpt_2(self.convpt_2(x)))  # [B, 64, N]
-        x = x.permute(0, 2, 1)  # [B, N, 64]
+        batch_size, _, _ = x.size()
 
-        # PCT Branch
-        new_xyz, new_feature = sample_and_group(npoint=512, nsample=32, xyz=xyz, points=x)
-        feature_0 = self.gather_local_0(new_feature)              # [B, 128, 512]
-        feature = feature_0.permute(0, 2, 1)
-        new_xyz, new_feature = sample_and_group(npoint=256, nsample=32, xyz=new_xyz, points=feature)
-        feature_1 = self.gather_local_1(new_feature)              # [B, 256, 256]
-        x_pct_block = self.pt_pct(feature_1)                      # [B, 1024, 256]
-
-        # GDM Branch
-        x1 = local_operator(points, k=30)
+        x1 = local_operator(x, k=30)
         x1 = F.relu(self.conv1(x1))
         x1 = F.relu(self.conv11(x1))
-        x1 = x1.max(dim=-1, keepdim=False)[0]                     # [B, 128, N]
+        x1 = x1.max(dim=-1, keepdim=False)[0]
+
+        # Geometry-Disentangle Module:
         x1s, x1g = GDM(x1, M=256)
+
+        # Sharp-Gentle Complementary Attention Module:
         y1s = self.SGCAM_1s(x1, x1s.transpose(2, 1))
         y1g = self.SGCAM_1g(x1, x1g.transpose(2, 1))
-        feature_gdm = torch.cat([y1s, y1g], 1)                    # [B, 256, N]
-        x_gdm = self.pt_gdm(feature_gdm)                          # [B, 1024, N]
-        x_gdm_resized = F.adaptive_max_pool1d(x_gdm, x_pct_block.size(2))  # [B, 1024, 256]
+        feature_1 = torch.cat([y1s, y1g], 1)
 
-        # Gated Fusion
-        concat_feature = torch.cat([x_pct_block, x_gdm_resized], dim=1)  # [B, 2048, 256]
-        gate = self.fusion_gate(concat_feature)                          # [B, 1024, 256]
-        x = gate * x_pct_block + (1 - gate) * x_gdm_resized              # [B, 1024, 256]
-
-        # Classification Head
-        x = F.adaptive_max_pool1d(x, 1).view(x.size(0), -1)              # [B, 1024]
+        x = self.pt_last(feature_1)
+        x = torch.cat([x, feature_1], dim=1)
+        x = self.conv_fuse(x)
+        x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
         x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2)
         x = self.dp1(x)
         x = F.leaky_relu(self.bn7(self.linear2(x)), negative_slope=0.2)
@@ -193,8 +161,6 @@ class RPCV2(nn.Module):
         x = self.linear3(x)
 
         return x
-
-
 
 
 class RPC(nn.Module):
@@ -319,8 +285,8 @@ class StackedAttention(nn.Module):
 
         self.sa1 = SA_Layer(channels)
         self.sa2 = SA_Layer(channels)
-        self.sa3 = SA_Layer(channels)
-        self.sa4 = SA_Layer(channels)
+        # self.sa3 = SA_Layer(channels)
+        # self.sa4 = SA_Layer(channels)
 
     def forward(self, x):
         # 
@@ -335,9 +301,9 @@ class StackedAttention(nn.Module):
         x = F.relu(self.bn2(self.conv2(x)))
         x1 = self.sa1(x)
         x2 = self.sa2(x1)
-        x3 = self.sa3(x2)
-        x4 = self.sa4(x3)
-        x = torch.cat((x1, x2, x3, x4), dim=1)
+        # x3 = self.sa3(x2)
+        # x4 = self.sa4(x3)
+        x = torch.cat((x1, x2), dim=1)
 
         return x
 
