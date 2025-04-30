@@ -122,7 +122,7 @@ class RPCV2(nn.Module):
 
         self.pt_last = StackedAttention()
 
-        self.conv_fuse = nn.Sequential(nn.Conv1d(1280, 1024, kernel_size=1, bias=False),
+        self.conv_fuse = nn.Sequential(nn.Conv1d(768, 1024, kernel_size=1, bias=False),
                                        nn.BatchNorm1d(1024),
                                        nn.LeakyReLU(negative_slope=0.2))
 
@@ -149,7 +149,7 @@ class RPCV2(nn.Module):
         y1s = self.SGCAM_1s(x1, x1s.transpose(2, 1))
         y1g = self.SGCAM_1g(x1, x1g.transpose(2, 1))
         feature_1 = torch.cat([y1s, y1g], 1)
-
+        # print(x.size(), feature_1.size())
         x = self.pt_last(feature_1)
         x = torch.cat([x, feature_1], dim=1)
         x = self.conv_fuse(x)
