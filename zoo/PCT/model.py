@@ -104,9 +104,9 @@ class PointTransformerCls(nn.Module):
 
 
 
-class RPC(nn.Module):
+class RPCV2(nn.Module):
     def __init__(self, args, output_channels=40):
-        super(RPC, self).__init__()
+        super(RPCV2, self).__init__()
         self.args = args
 
         self.bn1 = nn.BatchNorm2d(64, momentum=0.1)
