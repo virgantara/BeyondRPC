@@ -120,9 +120,13 @@ class RPCV2(nn.Module):
         self.SGCAM_1s = SGCAM(128)
         self.SGCAM_1g = SGCAM(128)
 
+        self.res_proj = nn.Sequential(
+            nn.Conv1d(256, 1024, kernel_size=1, bias=False),
+            nn.BatchNorm1d(1024)
+        )
         self.pt_last = StackedAttention()
 
-        self.conv_fuse = nn.Sequential(nn.Conv1d(768, 1024, kernel_size=1, bias=False),
+        self.conv_fuse = nn.Sequential(nn.Conv1d(2048, 1024, kernel_size=1, bias=False),
                                        nn.BatchNorm1d(1024),
                                        nn.LeakyReLU(negative_slope=0.2))
 
@@ -149,10 +153,16 @@ class RPCV2(nn.Module):
         y1s = self.SGCAM_1s(x1, x1s.transpose(2, 1))
         y1g = self.SGCAM_1g(x1, x1g.transpose(2, 1))
         feature_1 = torch.cat([y1s, y1g], 1)
-        # print(x.size(), feature_1.size())
-        x = self.pt_last(feature_1)
-        x = torch.cat([x, feature_1], dim=1)
+        feature_1_proj = self.res_proj(feature_1)  # now [B, 1024, N]
+        
+        x_att = self.pt_last(feature_1)
+        
+        # x = x_att + feature_1_proj
+
+        x = torch.cat([x_att, feature_1_proj], dim=1)
+        
         x = self.conv_fuse(x)
+        
         x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
         x = F.leaky_relu(self.bn6(self.linear1(x)), negative_slope=0.2)
         x = self.dp1(x)
@@ -285,8 +295,8 @@ class StackedAttention(nn.Module):
 
         self.sa1 = SA_Layer(channels)
         self.sa2 = SA_Layer(channels)
-        # self.sa3 = SA_Layer(channels)
-        # self.sa4 = SA_Layer(channels)
+        self.sa3 = SA_Layer(channels)
+        self.sa4 = SA_Layer(channels)
 
     def forward(self, x):
         # 
@@ -301,9 +311,9 @@ class StackedAttention(nn.Module):
         x = F.relu(self.bn2(self.conv2(x)))
         x1 = self.sa1(x)
         x2 = self.sa2(x1)
-        # x3 = self.sa3(x2)
-        # x4 = self.sa4(x3)
-        x = torch.cat((x1, x2), dim=1)
+        x3 = self.sa3(x2)
+        x4 = self.sa4(x3)
+        x = torch.cat((x1, x2, x3, x4), dim=1)
 
         return x
 
