@@ -54,8 +54,8 @@ def _init_():
     os.system('cp data.py outputs' + '/' + args.exp_name + '/' + 'data.py.backup')
 
 def train(args, io):
-    wandb.init(project="UnderCorruption", name=args.exp_name)
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points), num_workers=8,
+    # wandb.init(project="UnderCorruption", name=args.exp_name)
+    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None), num_workers=8,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
     test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=False)
@@ -70,7 +70,7 @@ def train(args, io):
     else:
         raise Exception("Not implemented")
 
-    print(str(model))
+    # print(str(model))
 
     if not args.use_initweight:
         print("Use Pretrain")

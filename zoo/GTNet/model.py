@@ -148,8 +148,9 @@ class GTNet_cls(nn.Module):
         batch_size = x.size(0)
 
         num_points=x.size(2)
-       
-
+        
+        x = x.permute(0, 2, 1)
+        print(x.size())
         x1 = self.transformer1(x)[0]
         
         x2 = self.transformer2(x1)[0]

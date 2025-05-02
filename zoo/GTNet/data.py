@@ -10,6 +10,11 @@ Modified by
 @Author: An Tao, Pengliang Ji
 @Contact: ta19@mails.tsinghua.edu.cn, jpl1723@buaa.edu.cn
 @Time: 2021/7/20 7:49 PM
+
+Modified by 
+@Author: Oddy Virgantara Putra
+@Contact: oddy@unida.gontor.ac.id
+@Time: 2025/05/03 5:45 AM
 """
 
 
@@ -22,7 +27,7 @@ import torch
 import json
 import cv2
 from torch.utils.data import Dataset
-
+from PointWOLF import PointWOLF
 
 def download_modelnet40():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -75,12 +80,13 @@ def download_S3DIS():
     
 
 def load_data_cls(partition):
-    download_modelnet40()
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DATA_DIR = BASE_DIR
+    # download_modelnet40()
+    BASE_DIR = '/home/virgantara/PythonProjects/DualGraphPoint'
+    # BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    DATA_DIR = os.path.join(BASE_DIR, 'data')
     all_data = []
     all_label = []
-    for h5_name in glob.glob(os.path.join('D:\\datasets\\modelnet40_ply_hdf5_2048', '*%s*.h5'%partition)):
+    for h5_name in glob.glob(os.path.join(DATA_DIR, 'modelnet40_ply_hdf5_2048', 'ply_data_%s*.h5'%partition)):
         f = h5py.File(h5_name, 'r+')
         data = f['data'][:].astype('float32')
         label = f['label'][:].astype('int64')
@@ -279,17 +285,19 @@ def rotate_pointcloud(pointcloud):
 
 
 class ModelNet40(Dataset):
-    def __init__(self, num_points, partition='train'):
+    def __init__(self, num_points, partition='train', args=None):
         self.data, self.label = load_data_cls(partition)
         self.num_points = num_points
         self.partition = partition        
+        self.PointWOLF = PointWOLF(args) if args is not None else None
 
     def __getitem__(self, item):
         pointcloud = self.data[item][:self.num_points]
         label = self.label[item]
         if self.partition == 'train':
-            pointcloud = translate_pointcloud(pointcloud)
             np.random.shuffle(pointcloud)
+            if self.PointWOLF is not None:
+                _, pointcloud = self.PointWOLF(pointcloud)
         return pointcloud, label
 
     def __len__(self):
