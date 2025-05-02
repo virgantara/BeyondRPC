@@ -7,8 +7,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from data import ModelNet40
-from model import Pct, RPC, RPCV2, PointTransformerCls
+from data import ShapeNetPart
+from model_seg import RPC_partseg
 import numpy as np
 from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
@@ -32,24 +32,55 @@ def _init_():
     os.system('cp data.py checkpoints' + '/' + args.exp_name + '/' + 'data.py.backup')
 
 
+def calculate_shape_IoU(pred_np, seg_np, label, class_choice):
+    label = label.squeeze()
+    shape_ious = []
+    cat_ious = [[] for i in range(16)]
+    for shape_idx in range(seg_np.shape[0]):
+        if not class_choice:
+            start_index = index_start[label[shape_idx]]
+            num = seg_num[label[shape_idx]]
+            parts = range(start_index, start_index + num)
+        else:
+            parts = range(seg_num[label[0]])
+        part_ious = []
+        for part in parts:
+            I = np.sum(np.logical_and(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
+            U = np.sum(np.logical_or(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
+            if U == 0:
+                iou = 1  # If the union of groundtruth and prediction points is empty, then count part IoU as 1
+            else:
+                iou = I / float(U)
+            part_ious.append(iou)
+        shape_ious.append(np.mean(part_ious))
+        cat_ious[label[shape_idx]].append(np.mean(part_ious))
+    for item in cat_ious:
+        print(np.mean(item), end=" ")
+    print()
+    return shape_ious
+
 def train(args, io):
-    wandb.init(project="UnderCorruption", name=args.exp_name)
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
-                              num_workers=8,
-                              batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
-                             batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    # wandb.init(project="UnderCorruptionPartseg", name=args.exp_name)
+    
+    train_dataset = ShapeNetPart(partition='trainval', num_points=args.num_points, class_choice=args.class_choice,args=args if args.pw else None)
+    if (len(train_dataset) < 100):
+        drop_last = False
+    else:
+        drop_last = True
+    train_loader = DataLoader(train_dataset, num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=drop_last)
+    test_loader = DataLoader(ShapeNetPart(partition='test', num_points=args.num_points, class_choice=args.class_choice), 
+                            num_workers=8, batch_size=args.test_batch_size, shuffle=False, drop_last=False)
+
+    #Try to load models
+    seg_num_all = train_loader.dataset.seg_num_all
+    seg_start_index = train_loader.dataset.seg_start_index
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
-    if args.model == 'RPC':
-        model = RPC(args).to(device)
-    elif args.model == 'RPCV2':
-        model = RPCV2(args).to(device)
-    elif args.model == 'PT':
-        model = PointTransformerCls(args).to(device)
-    else:
-        model = Pct(args).to(device)
+    # if args.model == 'RPC':
+    model = RPC_partseg(args, num_classes=seg_num_all).to(device)
+    # else:
+    #     model = Pct(args).to(device)
     # print(str(model))
 
     if not args.use_initweight:
@@ -64,7 +95,7 @@ def train(args, io):
         model.load_state_dict(model_state_dict)
 
     model = nn.DataParallel(model)
-    wandb.watch(model)
+    # wandb.watch(model)
 
     if args.use_sgd:
         print("Use SGD")
@@ -82,25 +113,24 @@ def train(args, io):
     print(f"Trainable parameters: {trainable_params / 1e6:.2f}M")
 
     criterion = cal_loss
-    best_test_acc = 0
+    best_test_iou = 0
 
     for epoch in range(args.epochs):
         
         train_loss = 0.0
         count = 0.0
         model.train()
-        train_pred = []
-        train_true = []
+        train_true_cls = []
+        train_pred_cls = []
+        train_true_seg = []
+        train_pred_seg = []
+        train_label_seg = []
+
         idx = 0
         total_time = 0.0
 
         wandb_log = {}
-        for data, label in tqdm(train_loader):
-            # Data (B, N, 3)
-            # label (B, 1)
-            '''
-            implement augmentation
-            '''
+        for data, label, seg in tqdm(train_loader):
 
             rsmix = False
             r = np.random.rand(1)
@@ -117,6 +147,7 @@ def train(args, io):
                 label = torch.LongTensor(label)
                 label_b = torch.LongTensor(label_b)
                 lam = torch.FloatTensor(lam)
+
             if args.rot or args.rdscale or args.shift or args.jitter or args.shuffle or args.rddrop or (
                     args.beta != 0.0):
                 data = torch.FloatTensor(data)
@@ -124,104 +155,118 @@ def train(args, io):
                 lam = torch.FloatTensor(lam)
                 lam, label_b = lam.to(device), label_b.to(device).squeeze()
 
-            data, label = data.to(device), label.to(device).squeeze()
 
-            print(label.size())
-            if rsmix:
-                data = data.permute(0, 2, 1)
-                batch_size = data.size()[0]
-                opt.zero_grad()
 
-                start_time = time.time()
-                logits = model(data)
-                loss = 0
-                for i in range(batch_size):
-                    loss_tmp = criterion(logits[i].unsqueeze(0), label[i].unsqueeze(0).long()) * (1 - lam[i]) \
-                               + criterion(logits[i].unsqueeze(0), label_b[i].unsqueeze(0).long()) * lam[i]
-                    loss += loss_tmp
-                loss = loss / batch_size
-            else:
-                data = data.permute(0, 2, 1) # (B, 3, N)
-                
+
+            seg = seg - seg_start_index
+            label_one_hot = np.zeros((label.shape[0], 16))
+            for idx in range(label.shape[0]):
+                label_one_hot[idx, label[idx]] = 1
+
+            label_one_hot = torch.from_numpy(label_one_hot.astype(np.float32))
+            data, label_one_hot, seg = data.to(device), label_one_hot.to(device), seg.to(device)
+            data = data.permute(0, 2, 1)
+            batch_size = data.size()[0]
+            opt.zero_grad()
             
-                batch_size = data.size()[0]
-                opt.zero_grad()
-                start_time = time.time()
-                logits = model(data)
-                loss = criterion(logits, label)
-
+            
+            # if rsmix:
+            #     seg_pred = model(data, label_one_hot)
+            #     seg_pred = seg_pred.permute(0, 2, 1).contiguous()
+            #     loss = 0
+            #     for i in range(batch_size):
+            #         print(label.size())
+            #         loss_tmp = criterion(seg_pred[i].unsqueeze(0), label[i].unsqueeze(0).long()) * (1 - lam[i]) \
+            #                    + criterion(seg_pred[i].unsqueeze(0), label_b[i].unsqueeze(0).long()) * lam[i]
+            #         loss += loss_tmp
+            #     loss = loss / batch_size
+            # else:
+            seg_pred = model(data, label_one_hot)
+            seg_pred = seg_pred.permute(0, 2, 1).contiguous()
+            loss = criterion(seg_pred.view(-1, seg_num_all), seg.view(-1,1).squeeze())
             loss.backward()
             opt.step()
-            end_time = time.time()
-            total_time += (end_time - start_time)
-
-            preds = logits.max(dim=1)[1]
+            pred = seg_pred.max(dim=2)[1]               # (batch_size, num_points)
             count += batch_size
             train_loss += loss.item() * batch_size
-            train_true.append(label.cpu().numpy())
-            train_pred.append(preds.detach().cpu().numpy())
+            seg_np = seg.cpu().numpy()                  # (batch_size, num_points)
+            pred_np = pred.detach().cpu().numpy()       # (batch_size, num_points)
+            train_true_cls.append(seg_np.reshape(-1))       # (batch_size * num_points)
+            train_pred_cls.append(pred_np.reshape(-1))      # (batch_size * num_points)
+            train_true_seg.append(seg_np)
+            train_pred_seg.append(pred_np)
+            train_label_seg.append(label.reshape(-1))
 
-        print('train total time is', total_time)
-        train_true = np.concatenate(train_true)
-        train_pred = np.concatenate(train_pred)
-        train_accuracy = metrics.accuracy_score(train_true, train_pred)
-        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
+            scheduler.step()
 
-        scheduler.step()
-
-        outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f' % (epoch,
-                                                                                 train_loss * 1.0 / count,
-                                                                                 train_accuracy,
-                                                                                 train_balanced_accuracy)
+        train_true_cls = np.concatenate(train_true_cls)
+        train_pred_cls = np.concatenate(train_pred_cls)
+        train_acc = metrics.accuracy_score(train_true_cls, train_pred_cls)
+        avg_per_class_acc = metrics.balanced_accuracy_score(train_true_cls, train_pred_cls)
+        train_true_seg = np.concatenate(train_true_seg, axis=0)
+        train_pred_seg = np.concatenate(train_pred_seg, axis=0)
+        train_label_seg = np.concatenate(train_label_seg)
+        train_ious = calculate_shape_IoU(train_pred_seg, train_true_seg, train_label_seg, args.class_choice)
+        outstr = 'Train %d, loss: %.6f, train acc: %.6f, train avg acc: %.6f, train iou: %.6f' % (epoch, 
+                                                                                                  train_loss*1.0/count,
+                                                                                                  train_acc,
+                                                                                                  avg_per_class_acc,
+                                                                                                  np.mean(train_ious))
         io.cprint(outstr)
-        wandb_log['Train Loss'] = train_loss * 1.0 / count
-        wandb_log['Train Acc'] = train_accuracy
-        wandb_log['Train AVG Acc'] = train_balanced_accuracy
-
+        
         ####################
         # Test
         ####################
         test_loss = 0.0
         count = 0.0
         model.eval()
-        test_pred = []
-        test_true = []
-        total_time = 0.0
-        for data, label in test_loader:
-            data, label = data.to(device), label.to(device).squeeze()
-            data = data.permute(0, 2, 1)
+        test_true_cls = []
+        test_pred_cls = []
+        test_true_seg = []
+        test_pred_seg = []
+        test_label_seg = []
+        for data, label, seg in tqdm.tqdm(test_loader):
+            seg = seg - seg_start_index
+            label_one_hot = np.zeros((label.shape[0], 16))
+            for idx in range(label.shape[0]):
+                label_one_hot[idx, label[idx]] = 1
+            label_one_hot = torch.from_numpy(label_one_hot.astype(np.float32))
+
+            data, label_one_hot, seg = data.to(device), label_one_hot.to(device), seg.to(device)
+            if args.model != 'gcn3d':
+                data = data.permute(0, 2, 1)
             batch_size = data.size()[0]
-            start_time = time.time()
-            logits = model(data)
-            end_time = time.time()
-            total_time += (end_time - start_time)
-            loss = criterion(logits, label)
-            preds = logits.max(dim=1)[1]
+            seg_pred = model(data, label_one_hot)
+            seg_pred = seg_pred.permute(0, 2, 1).contiguous()
+            loss = criterion(seg_pred.view(-1, seg_num_all), seg.view(-1,1).squeeze())
+            pred = seg_pred.max(dim=2)[1]
             count += batch_size
             test_loss += loss.item() * batch_size
-            test_true.append(label.cpu().numpy())
-            test_pred.append(preds.detach().cpu().numpy())
-        print('test total time is', total_time)
-        test_true = np.concatenate(test_true)
-        test_pred = np.concatenate(test_pred)
-        test_acc = metrics.accuracy_score(test_true, test_pred)
-        avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
-        outstr = 'Test %d, loss: %.6f, test acc: %.6f, test avg acc: %.6f' % (epoch,
-                                                                              test_loss * 1.0 / count,
-                                                                              test_acc,
-                                                                              avg_per_class_acc)
+            seg_np = seg.cpu().numpy()
+            pred_np = pred.detach().cpu().numpy()
+            test_true_cls.append(seg_np.reshape(-1))
+            test_pred_cls.append(pred_np.reshape(-1))
+            test_true_seg.append(seg_np)
+            test_pred_seg.append(pred_np)
+            test_label_seg.append(label.reshape(-1))
+        test_true_cls = np.concatenate(test_true_cls)
+        test_pred_cls = np.concatenate(test_pred_cls)
+        test_acc = metrics.accuracy_score(test_true_cls, test_pred_cls)
+        avg_per_class_acc = metrics.balanced_accuracy_score(test_true_cls, test_pred_cls)
+        test_true_seg = np.concatenate(test_true_seg, axis=0)
+        test_pred_seg = np.concatenate(test_pred_seg, axis=0)
+        test_label_seg = np.concatenate(test_label_seg)
+        test_ious = calculate_shape_IoU(test_pred_seg, test_true_seg, test_label_seg, args.class_choice)
+        outstr = 'Test %d, loss: %.6f, test acc: %.6f, test avg acc: %.6f, test iou: %.6f' % (epoch,
+                                                                                              test_loss*1.0/count,
+                                                                                              test_acc,
+                                                                                              avg_per_class_acc,
+                                                                                              np.mean(test_ious))
         io.cprint(outstr)
-        wandb_log['Test Loss'] = test_loss*1.0/count
-        wandb_log['Test Acc'] = test_acc
-        wandb_log['Test AVG Acc'] = avg_per_class_acc
-        wandb.log(wandb_log)
-
-        if test_acc >= best_test_acc:
-            best_test_acc = test_acc
-            print("Best Test Acc: ",best_test_acc)
-            torch.save(model.state_dict(), 'checkpoints/%s/models/model.t7' % args.exp_name)
-        torch.save(model.state_dict(), 'checkpoints/%s/models/model_final.t7' % args.exp_name)
-
+        if np.mean(test_ious) >= best_test_iou:
+            best_test_iou = np.mean(test_ious)
+            torch.save(model, 'outputs/%s/models/whole_model.pt' % args.exp_name)
+            torch.save(model.state_dict(), 'outputs/%s/models/model.t7' % args.exp_name)
 
 def test(args, io):
     test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points),
@@ -264,6 +309,14 @@ if __name__ == "__main__":
                         help='Name of the experiment')
     parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
                         choices=['modelnet40'])
+    parser.add_argument('--class_choice', type=str, default=None, metavar='N',
+                        choices=['airplane', 'bag', 'cap', 'car', 'chair',
+                                 'earphone', 'guitar', 'knife', 'lamp', 'laptop',
+                                 'motor', 'mug', 'pistol', 'rocket', 'skateboard', 'table'])
+    parser.add_argument('--class_test', type=str, default=None, metavar='N',
+                        choices=['airplane', 'bag', 'cap', 'car', 'chair',
+                                 'earphone', 'guitar', 'knife', 'lamp', 'laptop',
+                                 'motor', 'mug', 'pistol', 'rocket', 'skateboard', 'table'])
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
