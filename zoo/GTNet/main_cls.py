@@ -402,9 +402,10 @@ if __name__ == "__main__":
             model = GTNet_cls(args).to(device)
         else:
             raise Exception("Not implemented")
-            
+
         model = nn.DataParallel(model)
-        model.load_state_dict(torch.load(args.model_path))
+        checkpoint = torch.load(args.model_path)
+        model.load_state_dict(checkpoint['model_state_dict'])
         model = model.eval()
 
 
