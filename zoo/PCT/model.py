@@ -4,25 +4,25 @@ import torch.nn.functional as F
 from GDANet_cls import GDM, local_operator, SGCAM
 from curvenet_util import CIC, LPFA
 from pointnet_util import farthest_point_sample, index_points, square_distance
+from util import sample_and_group
 
-
-def sample_and_group(npoint, nsample, xyz, points):
-    B, N, C = xyz.shape
-    S = npoint 
+# def sample_and_group(npoint, nsample, xyz, points):
+#     B, N, C = xyz.shape
+#     S = npoint 
     
-    fps_idx = farthest_point_sample(xyz, npoint) # [B, npoint]
+#     fps_idx = farthest_point_sample(xyz, npoint) # [B, npoint]
 
-    new_xyz = index_points(xyz, fps_idx) 
-    new_points = index_points(points, fps_idx)
+#     new_xyz = index_points(xyz, fps_idx) 
+#     new_points = index_points(points, fps_idx)
 
-    dists = square_distance(new_xyz, xyz)  # B x npoint x N
-    idx = dists.argsort()[:, :, :nsample]  # B x npoint x K
+#     dists = square_distance(new_xyz, xyz)  # B x npoint x N
+#     idx = dists.argsort()[:, :, :nsample]  # B x npoint x K
 
-    grouped_points = index_points(points, idx)
-    grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)
-    # print(grouped_points_norm.size())
-    new_points = torch.cat([grouped_points_norm, new_points.view(B, S, 1, -1).repeat(1, 1, nsample, 1)], dim=-1)
-    return new_xyz, new_points
+#     grouped_points = index_points(points, idx)
+#     grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)
+#     # print(grouped_points_norm.size())
+#     new_points = torch.cat([grouped_points_norm, new_points.view(B, S, 1, -1).repeat(1, 1, nsample, 1)], dim=-1)
+#     return new_xyz, new_points
 
 
 class Local_op(nn.Module):
