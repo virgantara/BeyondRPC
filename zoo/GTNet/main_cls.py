@@ -344,6 +344,8 @@ if __name__ == "__main__":
                         help='Pretrained model path AdaCROSSNET')
     parser.add_argument('--use_initweight', action='store_true', default=False,
                         help='Use Init Weight')
+    parser.add_argument('--eval_corrupt', type=bool, default=False,
+                        help='evaluate the model under corruption')
 
     # pointwolf
     parser.add_argument('--pw', action='store_true', help='use PointWOLF')
@@ -388,7 +390,41 @@ if __name__ == "__main__":
     else:
         io.cprint('Using CPU')
 
-    if not args.eval:
+    if not args.eval and not args.eval_corrupt:
         train(args, io)
-    else:
+    elif args.eval:
         test(args, io)
+    elif args.eval_corrupt:
+        device = torch.device("cuda" if args.cuda else "cpu")
+        if args.model == 'pointnet':
+            model = PointNet(args).to(device)
+        elif args.model == 'GTNet':
+            model = GTNet_cls(args).to(device)
+        else:
+            raise Exception("Not implemented")
+            
+        model = nn.DataParallel(model)
+        model.load_state_dict(torch.load(args.model_path))
+        model = model.eval()
+
+
+        def test_corrupt(args, split, model):
+            test_loader = DataLoader(ModelNetC(split=split),
+                                     batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+            test_true = []
+            test_pred = []
+            for data, label in test_loader:
+                data, label = data.to(device), label.to(device).squeeze()
+                data = data.permute(0, 2, 1)
+                logits = model(data)
+                preds = logits.max(dim=1)[1]
+                test_true.append(label.cpu().numpy())
+                test_pred.append(preds.detach().cpu().numpy())
+            test_true = np.concatenate(test_true)
+            test_pred = np.concatenate(test_pred)
+            test_acc = metrics.accuracy_score(test_true, test_pred)
+            avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
+            return {'acc': test_acc, 'avg_per_class_acc': avg_per_class_acc}
+
+
+        eval_corrupt_wrapper(model, test_corrupt, {'args': args})
