@@ -150,7 +150,6 @@ class GTNet_cls(nn.Module):
         num_points=x.size(2)
         
         x = x.permute(0, 2, 1)
-        print(x.size())
         x1 = self.transformer1(x)[0]
         
         x2 = self.transformer2(x1)[0]
@@ -158,7 +157,12 @@ class GTNet_cls(nn.Module):
         x3 = self.transformer3(x2)[0]
        
         x4 = self.transformer4(x3)[0]
-       
+
+        x1 = x1.permute(0, 2, 1)  # (B, C, N)
+        x2 = x2.permute(0, 2, 1)
+        x3 = x3.permute(0, 2, 1)
+        x4 = x4.permute(0, 2, 1)
+
         x = torch.cat((x1, x2, x3,x4), dim=1)
         
         

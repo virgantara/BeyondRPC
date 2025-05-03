@@ -115,10 +115,14 @@ class GT(nn.Module):
     # xyz: b x n x 3, features: b x n x f
     def forward(self,features,dim9=False,dim6=False):
         #b,n,c
+        
         knn_features, knn_idx = get_graph_feature(features, k=self.k,dim9=dim9,dim6=dim6)
-        features=features.permute(0,2,1)
+        # features=features.permute(0,2,1)
         knn_features=knn_features.permute(0,2,3,1)
-        batch_size,_,num_points=features.shape
+
+        
+        batch_size,num_points,_=features.shape
+        # print(features.size())
         knn_features=self.fb(knn_features)
         x = self.fc1(features)
 
