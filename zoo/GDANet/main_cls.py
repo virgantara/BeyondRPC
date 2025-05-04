@@ -55,7 +55,7 @@ def _init_():
 
 
 def train(args, io):
-    wandb.init(project="UnderCorruption", name=args.exp_name)
+    wandb.init(project="UnderCorruptionScanObjectNN", name=args.exp_name)
     # train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
     #                           num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
     # test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
@@ -76,7 +76,7 @@ def train(args, io):
         test_loader = DataLoader(
             ScanObjectNN(partition='test', num_points=args.num_points), 
             num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
-    
+
     device = torch.device("cuda" if args.cuda else "cpu")
 
     model = GDANET().to(device)
