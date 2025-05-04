@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from util.data_util import ModelNet40
+from util.data_util import ModelNet40,ScanObjectNN
 from model.GDANet_cls import GDANET
 import numpy as np
 from torch.utils.data import DataLoader
@@ -56,15 +56,31 @@ def _init_():
 
 def train(args, io):
     wandb.init(project="UnderCorruption", name=args.exp_name)
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
-                              num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
-                             batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    # train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
+    #                           num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
+    # test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
+    #                          batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
+    output_channels = 40
+    if args.dataset == 'modelnet40':
+        train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
+                              num_workers=8,
+                              batch_size=args.batch_size, shuffle=True, drop_last=True)
+        test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
+                             batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    elif args.dataset == 'scanobjectnn':
+        output_channels = 15
+        train_loader = DataLoader(
+            ScanObjectNN(partition='train', num_points=args.num_points),
+            num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
+        test_loader = DataLoader(
+            ScanObjectNN(partition='test', num_points=args.num_points), 
+            num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    
     device = torch.device("cuda" if args.cuda else "cpu")
 
     model = GDANET().to(device)
-    print(str(model))
+    # print(str(model))
 
     if args.use_initweight:
         model.apply(weight_init)
@@ -234,8 +250,15 @@ def train(args, io):
 
 
 def test(args, io):
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points),
+    output_channels = 40
+    if args.dataset == 'modelnet40':
+        test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    elif args.dataset == 'scanobjectnn':
+        output_channels = 15
+        test_loader = DataLoader(
+            ScanObjectNN(partition='test', num_points=args.num_points), 
+            num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -268,6 +291,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='3D Object Classification')
     parser.add_argument('--exp_name', type=str, default='GDANet', metavar='N',
                         help='Name of the experiment')
+    parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
+                        choices=['modelnet40','scanobjectnn'])
     parser.add_argument('--batch_size', type=int, default=64, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--test_batch_size', type=int, default=32, metavar='batch_size',
