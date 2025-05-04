@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from data import ModelNet40
+from data import ModelNet40, ScanObjectNN
 from model import Pct, RPC, RPCV2, PointTransformerCls
 import numpy as np
 from torch.utils.data import DataLoader
@@ -33,23 +33,34 @@ def _init_():
 
 
 def train(args, io):
-    wandb.init(project="UnderCorruption", name=args.exp_name)
-    train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
+    wandb.init(project="UnderCorruptionScanObjectNN", name=args.exp_name)
+    
+    output_channels = 40
+    if args.dataset == 'modelnet40':
+        train_loader = DataLoader(ModelNet40(partition='train', num_points=args.num_points, args=args if args.pw else None),
                               num_workers=8,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
+        test_loader = DataLoader(ModelNet40(partition='test', num_points=args.num_points), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=False)
+    elif args.dataset == 'scanobjectnn':
+        output_channels = 15
+        train_loader = DataLoader(
+            ScanObjectNN(partition='train', num_points=args.num_points),
+            num_workers=8, batch_size=args.batch_size, shuffle=True, drop_last=True)
+        test_loader = DataLoader(
+            ScanObjectNN(partition='test', num_points=args.num_points), 
+            num_workers=8, batch_size=args.test_batch_size, shuffle=True, drop_last=False)
 
     device = torch.device("cuda" if args.cuda else "cpu")
 
     if args.model == 'RPC':
-        model = RPC(args).to(device)
+        model = RPC(args, output_channels).to(device)
     elif args.model == 'RPCV2':
         model = RPCV2(args).to(device)
     elif args.model == 'PT':
-        model = PointTransformerCls(args).to(device)
+        model = PointTransformerCls(args, output_channels).to(device)
     else:
-        model = Pct(args).to(device)
+        model = Pct(args, output_channels).to(device)
     # print(str(model))
 
     if not args.use_initweight:
@@ -262,7 +273,7 @@ if __name__ == "__main__":
     parser.add_argument('--exp_name', type=str, default='exp', metavar='N',
                         help='Name of the experiment')
     parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
-                        choices=['modelnet40'])
+                        choices=['modelnet40','scanobjectnn'])
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
     parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
