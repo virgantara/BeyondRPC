@@ -17,6 +17,8 @@ parser.add_argument('--num_points', type=int, default=1024,
                         help='num of points to use')
 parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
                         help='Size of batch)')
+parser.add_argument('--dropout', type=float, default=0.5,
+                        help='dropout rate')
 
 args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -25,7 +27,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 test_loader = DataLoader(ScanObjectNN(partition='test', num_points=args.num_points),
                          batch_size=args.test_batch_size, shuffle=False)
 
-model = RPC(args=None, output_channels=15).to(device)
+model = RPC(args=args, output_channels=15).to(device)
 model.load_state_dict(torch.load(args.model_path))
 model.eval()
 
