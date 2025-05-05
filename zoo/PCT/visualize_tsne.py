@@ -8,15 +8,25 @@ from torch.utils.data import DataLoader
 from model import RPC  # or your chosen model
 from data import ScanObjectNN
 from tqdm import tqdm
+import argparse
 
+parser = argparse.ArgumentParser(description='Point Cloud Recognition')
+parser.add_argument('--model_path', type=str, default='', metavar='N',
+                        help='model path')
+parser.add_argument('--num_points', type=int, default=1024,
+                        help='num of points to use')
+parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
+                        help='Size of batch)')
+
+args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Load dataset and model
-test_loader = DataLoader(ScanObjectNN(partition='test', num_points=1024),
-                         batch_size=32, shuffle=False)
+test_loader = DataLoader(ScanObjectNN(partition='test', num_points=args.num_points),
+                         batch_size=args.test_batch_size, shuffle=False)
 
 model = RPC(args=None, output_channels=15).to(device)
-model.load_state_dict(torch.load('checkpoints/your_experiment/models/model.t7'))
+model.load_state_dict(torch.load(args.model_path))
 model.eval()
 
 # Extract features
