@@ -1,5 +1,5 @@
 from sklearn.manifold import TSNE
-from sklearn.decomposition import PCA
+from umap import UMAP
 import matplotlib.pyplot as plt
 import seaborn as sns
 import torch
@@ -28,13 +28,9 @@ test_loader = DataLoader(ScanObjectNN(partition='test', num_points=args.num_poin
                          batch_size=args.test_batch_size, shuffle=False)
 
 model = RPC(args=args, output_channels=15).to(device)
-
 state_dict = torch.load(args.model_path)
-
-# optionally: filter only keys that match
 model_state_dict = model.state_dict()
 pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
-
 model_state_dict.update(pretrained_dict)
 model.load_state_dict(model_state_dict)
 model.eval()
@@ -52,17 +48,23 @@ with torch.no_grad():
         all_labels.append(labels.cpu().numpy())
 
 X = np.concatenate(all_feats, axis=0)
-y = np.concatenate(all_labels, axis=0)
+y = np.concatenate(all_labels, axis=0).flatten()
 
-# Dimensionality reduction
-X_embedded = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(X)
+# t-SNE and UMAP
+X_tsne = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(X)
+X_umap = UMAP(n_components=2, n_neighbors=15, min_dist=0.1, random_state=42).fit_transform(X)
 
-# Plot
-plt.figure(figsize=(10, 8))
-# sns.scatterplot(x=X_embedded[:, 0], y=X_embedded[:, 1], hue=y, palette='tab10', s=40)
-sns.scatterplot(x=X_embedded[:, 0], y=X_embedded[:, 1], hue=y.flatten(), palette='tab10', s=40)
-plt.title("t-SNE of Baseline-RPC Feature Embeddings (ScanObjectNN)")
-plt.legend(loc='best')
+# Plot side-by-side
+fig, axes = plt.subplots(1, 2, figsize=(18, 8))
+
+sns.scatterplot(x=X_tsne[:, 0], y=X_tsne[:, 1], hue=y, palette='tab10', s=40, ax=axes[0])
+axes[0].set_title("t-SNE of Feature Embeddings (ScanObjectNN)", fontsize=14)
+axes[0].legend(loc='best', title='Class')
+
+sns.scatterplot(x=X_umap[:, 0], y=X_umap[:, 1], hue=y, palette='tab10', s=40, ax=axes[1])
+axes[1].set_title("UMAP of Feature Embeddings (ScanObjectNN)", fontsize=14)
+axes[1].legend(loc='best', title='Class')
+
 plt.tight_layout()
-plt.savefig("tsne_beyondrpc.png")
+plt.savefig("tsne_vs_umap.png")
 plt.show()
