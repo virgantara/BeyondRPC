@@ -231,6 +231,27 @@ class RPC(nn.Module):
 
         return x
 
+    def extract_features(self, x):
+        batch_size, _, _ = x.size()
+
+        x1 = local_operator(x, k=30)
+        x1 = F.relu(self.conv1(x1))
+        x1 = F.relu(self.conv11(x1))
+        x1 = x1.max(dim=-1, keepdim=False)[0]
+
+        x1s, x1g = GDM(x1, M=256)
+        y1s = self.SGCAM_1s(x1, x1s.transpose(2, 1))
+        y1g = self.SGCAM_1g(x1, x1g.transpose(2, 1))
+        feature_1 = torch.cat([y1s, y1g], 1)
+
+        x = self.pt_last(feature_1)
+        x = torch.cat([x, feature_1], dim=1)
+        x = self.conv_fuse(x)
+        x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)  # Shape: (B, 1024)
+
+        return x  # This is your feature for t-SNE
+
+
 class Pct(nn.Module):
     def __init__(self, args, output_channels=40):
         super(Pct, self).__init__()
