@@ -59,7 +59,8 @@ X_embedded = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(
 
 # Plot
 plt.figure(figsize=(10, 8))
-sns.scatterplot(x=X_embedded[:, 0], y=X_embedded[:, 1], hue=y, palette='tab10', s=40)
+# sns.scatterplot(x=X_embedded[:, 0], y=X_embedded[:, 1], hue=y, palette='tab10', s=40)
+sns.scatterplot(x=X_embedded[:, 0], y=X_embedded[:, 1], hue=y.flatten(), palette='tab10', s=40)
 plt.title("t-SNE of BeyondRPC Feature Embeddings (ScanObjectNN)")
 plt.legend(loc='best')
 plt.tight_layout()
