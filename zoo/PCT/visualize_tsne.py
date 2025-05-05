@@ -28,7 +28,15 @@ test_loader = DataLoader(ScanObjectNN(partition='test', num_points=args.num_poin
                          batch_size=args.test_batch_size, shuffle=False)
 
 model = RPC(args=args, output_channels=15).to(device)
-model.load_state_dict(torch.load(args.model_path))
+
+state_dict = torch.load(args.model_path)
+
+# optionally: filter only keys that match
+model_state_dict = model.state_dict()
+pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
+
+model_state_dict.update(pretrained_dict)
+model.load_state_dict(model_state_dict)
 model.eval()
 
 # Extract features
