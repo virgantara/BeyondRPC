@@ -54,17 +54,23 @@ y = np.concatenate(all_labels, axis=0).flatten()
 X_tsne = TSNE(n_components=2, perplexity=30, random_state=42).fit_transform(X)
 X_umap = UMAP(n_components=2, n_neighbors=15, min_dist=0.1, random_state=42).fit_transform(X)
 
+axis_label_fontsize = 16
+
 # Plot side-by-side
 fig, axes = plt.subplots(1, 2, figsize=(18, 8))
 
 sns.scatterplot(x=X_tsne[:, 0], y=X_tsne[:, 1], hue=y, palette='tab10', s=40, ax=axes[0])
-axes[0].set_title("t-SNE of Feature Embeddings (ScanObjectNN)", fontsize=14)
+axes[0].set_title("t-SNE BeyondRPC", fontsize=18)
+axes[0].set_xlabel("Component 1", fontsize=axis_label_fontsize)
+axes[0].set_ylabel("Component 2", fontsize=axis_label_fontsize)
 axes[0].legend(loc='best', title='Class')
 
 sns.scatterplot(x=X_umap[:, 0], y=X_umap[:, 1], hue=y, palette='tab10', s=40, ax=axes[1])
-axes[1].set_title("UMAP of Feature Embeddings (ScanObjectNN)", fontsize=14)
+axes[1].set_title("UMAP BeyondRPC", fontsize=18)
+axes[1].set_xlabel("Component 1", fontsize=axis_label_fontsize)
+axes[1].set_ylabel("Component 2", fontsize=axis_label_fontsize)
 axes[1].legend(loc='best', title='Class')
 
 plt.tight_layout()
-plt.savefig("tsne_vs_umap.png")
+plt.savefig("tsne_vs_umap_beyondrpc.png")
 plt.show()
