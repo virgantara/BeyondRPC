@@ -10,7 +10,7 @@ beyondrpc_scores = []
 print("Running RPC model...")
 for seed in seeds:
     result = subprocess.check_output([
-        "python", "main.py",
+        "python", "zoo/PCT/main.py",
         "--exp_name", f"RPC_seed{seed}",
         "--model", "RPC",
         "--dataset", "modelnet40",
@@ -24,7 +24,7 @@ for seed in seeds:
 print("\nRunning BeyondRPC model...")
 for seed in seeds:
     result = subprocess.check_output([
-        "python", "main.py",
+        "python", "zoo/PCT/main.py",
         "--exp_name", f"BeyondRPC_seed{seed}",
         "--model", "RPC",
         "--dataset", "modelnet40",
