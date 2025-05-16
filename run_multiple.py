@@ -19,7 +19,7 @@ for seed in seeds:
         "--pretrain_path", "ssl_models/adacrossnet_best.pth",
         "--epochs", "100",
         "--batch_size","64",
-        "--test_batch_size","33",
+        "--test_batch_size","32",
         "--pw"
     ])
     acc = float(result.decode().split("acc:")[-1].split(",")[0].strip())
@@ -36,7 +36,7 @@ for seed in seeds:
         "--seed", str(seed),
         "--epochs", "100",
         "--batch_size","64",
-        "--test_batch_size","33",
+        "--test_batch_size","32",
         "--use_initweight"
     ])
     acc = float(result.decode().split("acc:")[-1].split(",")[0].strip())
