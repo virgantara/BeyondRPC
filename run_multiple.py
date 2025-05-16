@@ -6,22 +6,6 @@ seeds = [42, 43, 44, 45, 46]
 rpc_scores = []
 beyondrpc_scores = []
 
-# Run RPC baseline
-print("Running RPC model...")
-for seed in seeds:
-    result = subprocess.check_output([
-        "python", "zoo/PCT/main.py",
-        "--exp_name", f"RPC_seed{seed}",
-        "--model", "RPC",
-        "--dataset", "modelnet40",
-        "--seed", str(seed),
-        "--epochs", "100",
-        "--batch_size","64",
-        "--test_batch_size","33",
-        "--use_initweight"
-    ])
-    acc = float(result.decode().split("acc:")[-1].split(",")[0].strip())
-    rpc_scores.append(acc)
 
 # Run BeyondRPC
 print("\nRunning BeyondRPC model...")
@@ -40,6 +24,24 @@ for seed in seeds:
     ])
     acc = float(result.decode().split("acc:")[-1].split(",")[0].strip())
     beyondrpc_scores.append(acc)
+
+# Run RPC baseline
+print("Running RPC model...")
+for seed in seeds:
+    result = subprocess.check_output([
+        "python", "zoo/PCT/main.py",
+        "--exp_name", f"RPC_seed{seed}",
+        "--model", "RPC",
+        "--dataset", "modelnet40",
+        "--seed", str(seed),
+        "--epochs", "100",
+        "--batch_size","64",
+        "--test_batch_size","33",
+        "--use_initweight"
+    ])
+    acc = float(result.decode().split("acc:")[-1].split(",")[0].strip())
+    rpc_scores.append(acc)
+
 
 # Convert to NumPy arrays
 rpc_scores = np.array(rpc_scores)
