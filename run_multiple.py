@@ -15,7 +15,8 @@ for seed in seeds:
         "--model", "RPC",
         "--dataset", "modelnet40",
         "--seed", str(seed),
-        "--epochs", "100"
+        "--epochs", "100",
+        "--use_initweight"
     ])
     acc = float(result.decode().split("acc:")[-1].split(",")[0].strip())
     rpc_scores.append(acc)
