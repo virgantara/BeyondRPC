@@ -106,6 +106,7 @@ def train(args, io):
         total_time = 0.0
 
         wandb_log = {}
+        print("Run epoch ",epoch)
         for data, label in tqdm(train_loader):
             # Data (B, N, 3)
             # label (B, 1)
