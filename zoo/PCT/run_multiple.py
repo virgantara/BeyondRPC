@@ -30,7 +30,8 @@ for seed in seeds:
         "--dataset", "modelnet40",
         "--seed", str(seed),
         "--pretrain_path", "ssl_models/adacrossnet_best.pth",
-        "--epochs", "100"
+        "--epochs", "100",
+        "--pw"
     ])
     acc = float(result.decode().split("acc:")[-1].split(",")[0].strip())
     beyondrpc_scores.append(acc)
