@@ -33,7 +33,7 @@ def _init_():
 
 
 def train(args, io):
-    wandb.init(project="UnderCorruptionScanObjectNN", name=args.exp_name)
+    wandb.init(project="UnderCorruptionPairedTest", name=args.exp_name)
     
     output_channels = 40
     if args.dataset == 'modelnet40':
