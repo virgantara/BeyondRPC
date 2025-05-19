@@ -90,7 +90,7 @@ def main(args):
     args.nneighbor = 16
     args.nblocks = 4
     args.transformer_dim = 512
-    args.learning_rate = 1e-4
+    args.learning_rate = args.lr
     args.weight_decay = 0.9
     args.optimizer = 'Adam'
     args.name = "Oddy"
