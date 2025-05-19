@@ -242,7 +242,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Point Cloud Recognition')
     parser.add_argument('--exp_name', type=str, default='exp', metavar='N',
                         help='Name of the experiment')
-    parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
+    parser.add_argument('--dataset', type=str, default='scanobjectnn', metavar='N',
                         choices=['modelnet40','scanobjectnn'])
     parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
                         help='Size of batch)')
