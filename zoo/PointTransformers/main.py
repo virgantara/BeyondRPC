@@ -13,7 +13,6 @@ import numpy as np
 from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
 import sklearn.metrics as metrics
-import rsmix_provider
 import time
 from tqdm import tqdm
 import wandb
