@@ -279,6 +279,8 @@ if __name__ == "__main__":
     parser.add_argument('--nsample', type=float, default=512,
                         help='default max sample number of the erased or added points in rsmix')
     parser.add_argument('--knn', action='store_true', help='use knn instead ball-query function')
+    parser.add_argument('--normal', action='store_true', default=False,
+                        help='Normal')
 
     args = parser.parse_args()
 
@@ -288,6 +290,8 @@ if __name__ == "__main__":
     io.cprint(str(args))
 
     args.cuda = not args.no_cuda and torch.cuda.is_available()
+
+    args.input_dim = 6 if args.normal else 3
     torch.manual_seed(args.seed)
     if args.cuda:
         io.cprint(
