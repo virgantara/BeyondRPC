@@ -1,6 +1,6 @@
 """
-Author: Benny
-Date: Nov 2019
+Author: Oddy
+Date: May 2025
 """
 import sys
 import os
@@ -22,27 +22,57 @@ from models.Oddy.model import PointTransformerCls
 import wandb
 import sklearn.metrics as metrics
 
-def test(model, loader, num_class=40):
-    mean_correct = []
-    class_acc = np.zeros((num_class,3))
-    for j, data in tqdm(enumerate(loader), total=len(loader)):
-        points, target = data
-        target = target[:, 0]
-        points, target = points.cuda(), target.cuda()
-        classifier = model.eval()
-        pred = classifier(points)
-        pred_choice = pred.data.max(1)[1]
-        for cat in np.unique(target.cpu()):
-            classacc = pred_choice[target==cat].eq(target[target==cat].long().data).cpu().sum()
-            class_acc[cat,0]+= classacc.item()/float(points[target==cat].size()[0])
-            class_acc[cat,1]+=1
-        correct = pred_choice.eq(target.long().data).cpu().sum()
-        mean_correct.append(correct.item()/float(points.size()[0]))
-    class_acc[:,2] =  class_acc[:,0]/ class_acc[:,1]
-    class_acc = np.mean(class_acc[:,2])
-    instance_acc = np.mean(mean_correct)
-    return instance_acc, class_acc
+# def test(model, loader, num_class=40):
+#     mean_correct = []
+#     class_acc = np.zeros((num_class,3))
+#     for j, data in tqdm(enumerate(loader), total=len(loader)):
+#         points, target = data
+#         target = target[:, 0]
+#         points, target = points.cuda(), target.cuda()
+#         classifier = model.eval()
+#         pred = classifier(points)
+#         pred_choice = pred.data.max(1)[1]
+#         for cat in np.unique(target.cpu()):
+#             classacc = pred_choice[target==cat].eq(target[target==cat].long().data).cpu().sum()
+#             class_acc[cat,0]+= classacc.item()/float(points[target==cat].size()[0])
+#             class_acc[cat,1]+=1
+#         correct = pred_choice.eq(target.long().data).cpu().sum()
+#         mean_correct.append(correct.item()/float(points.size()[0]))
+#     class_acc[:,2] =  class_acc[:,0]/ class_acc[:,1]
+#     class_acc = np.mean(class_acc[:,2])
+#     instance_acc = np.mean(mean_correct)
+#     return instance_acc, class_acc
+def test(model, loader):
+    model.eval()
+    test_pred = []
+    test_true = []
+    total_loss = 0.0
+    total = 0
+    criterion = torch.nn.CrossEntropyLoss()
 
+    with torch.no_grad():
+        for data in tqdm(loader, total=len(loader)):
+            points, target = data
+            target = target[:, 0]
+            points, target = points.cuda(), target.cuda()
+
+            pred = model(points)
+            loss = criterion(pred, target)
+
+            total_loss += loss.item() * points.size(0)
+            total += points.size(0)
+
+            pred_choice = pred.data.max(1)[1]
+            test_true.append(target.cpu().numpy())
+            test_pred.append(pred_choice.cpu().numpy())
+
+    test_true = np.concatenate(test_true)
+    test_pred = np.concatenate(test_pred)
+
+    instance_acc = metrics.accuracy_score(test_true, test_pred)
+    balanced_acc = metrics.balanced_accuracy_score(test_true, test_pred)
+    avg_loss = total_loss / total
+    return avg_loss, instance_acc, balanced_acc
 
 def main(args):
     wandb.init(project="ScanObjectNN", name=args.exp_name)
@@ -113,8 +143,11 @@ def main(args):
         wandb_log = {}
         classifier.train()
 
-        train_pred = []
+        train_loss_total = 0.0
+        train_total = 0
         train_true = []
+        train_pred = []
+
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             points, target = data
             points = points.data.numpy()
@@ -130,58 +163,62 @@ def main(args):
             pred = classifier(points)
             loss = criterion(pred, target.long())
             pred_choice = pred.data.max(1)[1]
-            # train_true.append(target.cpu().numpy())
-            # train_pred.append(pred_choice.detach().cpu().numpy())
-            
+
             correct = pred_choice.eq(target.long().data).cpu().sum()
             mean_correct.append(correct.item() / float(points.size()[0]))
             loss.backward()
             optimizer.step()
             global_step += 1
+
+            train_loss_total += loss.item() * points.size(0)
+            train_total += points.size(0)
+
+            pred_choice = pred.data.max(1)[1]
+            train_true.append(target.cpu().numpy())
+            train_pred.append(pred_choice.detach().cpu().numpy())
             
         scheduler.step()
 
-        # train_accuracy = metrics.accuracy_score(train_true, train_pred)
-        # train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
+        train_true = np.concatenate(train_true)
+        train_pred = np.concatenate(train_pred)
+        train_accuracy = metrics.accuracy_score(train_true, train_pred)
+        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
+        train_avg_loss = train_loss_total / train_total
 
-        train_instance_acc = np.mean(mean_correct)
-        
-        print('Train Instance Accuracy: %f' % train_instance_acc)
+        # train_instance_acc = np.mean(mean_correct)
+        print(f'Train Loss: {train_avg_loss:.4f}, Accuracy: {train_accuracy:.4f}, Balanced Accuracy: {train_balanced_accuracy:.4f}')
 
-        wandb_log['Train Instance Acc'] = train_instance_acc
+        # print('Train Instance Accuracy: %f' % train_instance_acc)
+
+        # wandb_log['Train Instance Acc'] = train_instance_acc
+        wandb_log['Train Loss'] = train_avg_loss
+        wandb_log['Train Accuracy'] = train_accuracy
+        wandb_log['Train Balanced Accuracy'] = train_balanced_accuracy
         # wandb_log['Train Acc'] = train_accuracy
         # wandb_log['Train AVG Acc'] = train_balanced_accuracy
 
-        test_pred = []
-        test_true = []
-        with torch.no_grad():
-            instance_acc, class_acc = test(classifier.eval(), testDataLoader)
-            wandb_log['Test Instance Acc'] = instance_acc
-            wandb_log['Test Class Acc'] = class_acc
-            if (instance_acc >= best_instance_acc):
-                best_instance_acc = instance_acc
-                best_epoch = epoch + 1
+        test_loss, test_accuracy, test_balanced_accuracy = test(classifier, testDataLoader)
+        wandb_log['Test Loss'] = test_loss
+        wandb_log['Test Accuracy'] = test_accuracy
+        wandb_log['Test Balanced Accuracy'] = test_balanced_accuracy
 
-            if (class_acc >= best_class_acc):
-                best_class_acc = class_acc
-            print('Test Instance Accuracy: %f, Class Accuracy: %f'% (instance_acc, class_acc))
-            print('Best Instance Accuracy: %f, Class Accuracy: %f'% (best_instance_acc, best_class_acc))
+        print(f'Test Loss: {test_loss:.4f}, Accuracy: {test_accuracy:.4f}, Balanced Accuracy: {test_balanced_accuracy:.4f}')
 
-            if (instance_acc >= best_instance_acc):
-                print('Save model...')
-                savepath = 'best_model.pth'
-                print('Saving at %s'% savepath)
-                state = {
-                    'epoch': best_epoch,
-                    'instance_acc': instance_acc,
-                    'class_acc': class_acc,
-                    'model_state_dict': classifier.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                }
-                torch.save(state, savepath)
-            global_epoch += 1
+        if test_accuracy >= best_instance_acc:
+            best_instance_acc = test_accuracy
+            best_balanced_acc = test_balanced_accuracy
+            best_epoch = epoch + 1
+            print('Save model...')
+            torch.save({
+                'epoch': best_epoch,
+                'instance_acc': test_accuracy,
+                'balanced_acc': test_balanced_accuracy,
+                'model_state_dict': classifier.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+            }, 'best_model.pth')
 
         wandb.log(wandb_log)
+        global_epoch += 1
 
     print('End of training...')
 
