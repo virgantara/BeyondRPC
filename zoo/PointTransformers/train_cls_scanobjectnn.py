@@ -20,6 +20,7 @@ import provider
 # import omegaconf
 from models.Oddy.model import PointTransformerCls
 import wandb
+import sklearn.metrics as metrics
 
 def test(model, loader, num_class=40):
     mean_correct = []
@@ -129,7 +130,7 @@ def main(args):
             pred = classifier(points)
             loss = criterion(pred, target.long())
             pred_choice = pred.data.max(1)[1]
-            train_true.append(label.cpu().numpy())
+            train_true.append(target.cpu().numpy())
             train_pred.append(pred_choice.detach().cpu().numpy())
             
             correct = pred_choice.eq(target.long().data).cpu().sum()
@@ -140,13 +141,23 @@ def main(args):
             
         scheduler.step()
 
-        train_instance_acc = np.mean(mean_correct)
-        print('Train Instance Accuracy: %f' % train_instance_acc)
-        wandb_log['Train Instance Acc'] = train_instance_acc
+        train_accuracy = metrics.accuracy_score(train_true, train_pred)
+        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
 
+        train_instance_acc = np.mean(mean_correct)
+        
+        print('Train Instance Accuracy: %f' % train_instance_acc)
+
+        wandb_log['Train Instance Acc'] = train_instance_acc
+        wandb_log['Train Acc'] = train_accuracy
+        wandb_log['Train AVG Acc'] = train_balanced_accuracy
+
+        test_pred = []
+        test_true = []
         with torch.no_grad():
             instance_acc, class_acc = test(classifier.eval(), testDataLoader)
-
+            wandb_log['Test Instance Acc'] = instance_acc
+            wandb_log['Test Class Acc'] = class_acc
             if (instance_acc >= best_instance_acc):
                 best_instance_acc = instance_acc
                 best_epoch = epoch + 1
