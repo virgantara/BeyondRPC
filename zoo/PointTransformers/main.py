@@ -57,16 +57,16 @@ def train(args, io):
         model = Pct(args, output_channels).to(device)
     # print(str(model))
 
-    if not args.use_initweight:
-        print("Use Pretrain")
-        state_dict = torch.load(args.pretrain_path)
+    # if not args.use_initweight:
+    #     print("Use Pretrain")
+    #     state_dict = torch.load(args.pretrain_path)
 
-        # optionally: filter only keys that match
-        model_state_dict = model.state_dict()
-        pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
+    #     # optionally: filter only keys that match
+    #     model_state_dict = model.state_dict()
+    #     pretrained_dict = {k: v for k, v in state_dict.items() if k in model_state_dict and v.size() == model_state_dict[k].size()}
 
-        model_state_dict.update(pretrained_dict)
-        model.load_state_dict(model_state_dict)
+    #     model_state_dict.update(pretrained_dict)
+    #     model.load_state_dict(model_state_dict)
 
     model = nn.DataParallel(model)
     wandb.watch(model)
