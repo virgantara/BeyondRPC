@@ -130,8 +130,8 @@ def main(args):
             pred = classifier(points)
             loss = criterion(pred, target.long())
             pred_choice = pred.data.max(1)[1]
-            train_true.append(target.cpu().numpy())
-            train_pred.append(pred_choice.detach().cpu().numpy())
+            # train_true.append(target.cpu().numpy())
+            # train_pred.append(pred_choice.detach().cpu().numpy())
             
             correct = pred_choice.eq(target.long().data).cpu().sum()
             mean_correct.append(correct.item() / float(points.size()[0]))
@@ -141,16 +141,16 @@ def main(args):
             
         scheduler.step()
 
-        train_accuracy = metrics.accuracy_score(train_true, train_pred)
-        train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
+        # train_accuracy = metrics.accuracy_score(train_true, train_pred)
+        # train_balanced_accuracy = metrics.balanced_accuracy_score(train_true, train_pred)
 
         train_instance_acc = np.mean(mean_correct)
         
         print('Train Instance Accuracy: %f' % train_instance_acc)
 
         wandb_log['Train Instance Acc'] = train_instance_acc
-        wandb_log['Train Acc'] = train_accuracy
-        wandb_log['Train AVG Acc'] = train_balanced_accuracy
+        # wandb_log['Train Acc'] = train_accuracy
+        # wandb_log['Train AVG Acc'] = train_balanced_accuracy
 
         test_pred = []
         test_true = []
