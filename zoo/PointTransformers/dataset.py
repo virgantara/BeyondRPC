@@ -10,6 +10,30 @@ import glob
 import h5py
 
 
+def load_ScanObjectNN(partition):
+    BASE_DIR = '/home/deep/OddyProjects/DynamicCrossNet/data/ScanObjectNN'
+    DATA_DIR = os.path.join(BASE_DIR, 'main_split')
+    h5_name = os.path.join(DATA_DIR, f'{partition}.h5')
+    f = h5py.File(h5_name)
+    data = f['data'][:].astype('float32')
+    label = f['label'][:].astype('int64')
+    label = label.reshape(-1,1)
+    return data, label
+
+class ScanObjectNN(Dataset):
+    def __init__(self, num_points, partition='train'):
+        self.data, self.label = load_ScanObjectNN(partition)
+        self.num_points = num_points
+        self.partition = partition        
+
+    def __getitem__(self, item):
+        pointcloud = self.data[item][:self.num_points]
+        label = self.label[item]
+        return pointcloud, label
+
+    def __len__(self):
+        return self.data.shape[0]
+
 class ModelNetDataLoader(Dataset):
     def __init__(self, root, npoint=1024, split='train', uniform=False, normal_channel=True, cache_size=15000):
         self.root = root

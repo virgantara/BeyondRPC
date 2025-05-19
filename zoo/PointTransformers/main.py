@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
-from data import ModelNet40, ScanObjectNN
+from dataset import ScanObjectNN
 from model import PointTransformerCls
 import numpy as np
 from torch.utils.data import DataLoader
