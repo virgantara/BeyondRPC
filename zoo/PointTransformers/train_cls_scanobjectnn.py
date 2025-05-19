@@ -95,6 +95,11 @@ def main(args):
     args.optimizer = 'Adam'
     args.name = "Oddy"
 
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+        
     device = torch.device("cuda")
 
     classifier = PointTransformerCls(args).to(device)
