@@ -19,7 +19,7 @@ import provider
 # import hydra
 # import omegaconf
 from models.Oddy.model import PointTransformerCls
-
+import wandb
 
 def test(model, loader, num_class=40):
     mean_correct = []
@@ -44,7 +44,7 @@ def test(model, loader, num_class=40):
 
 
 def main(args):
-    
+    wandb.init(project="ScanObjectNN", name=args.exp_name)
     '''DATA LOADING'''
     print('Load dataset ...')
 
@@ -68,7 +68,13 @@ def main(args):
 
     classifier = PointTransformerCls(args).to(device)
     criterion = torch.nn.CrossEntropyLoss()
+    wandb.watch(classifier)
 
+    total_params = sum(p.numel() for p in classifier.parameters())
+    trainable_params = sum(p.numel() for p in classifier.parameters() if p.requires_grad)
+
+    print(f"Total parameters: {total_params / 1e6:.2f}M")
+    print(f"Trainable parameters: {trainable_params / 1e6:.2f}M")
     try:
         checkpoint = torch.load('best_model.pth')
         start_epoch = checkpoint['epoch']
@@ -103,7 +109,11 @@ def main(args):
     for epoch in range(start_epoch,args.epochs):
         print('Epoch %d (%d/%s):' % (global_epoch + 1, epoch + 1, args.epochs))
         
+        wandb_log = {}
         classifier.train()
+
+        train_pred = []
+        train_true = []
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
             points, target = data
             points = points.data.numpy()
@@ -119,6 +129,9 @@ def main(args):
             pred = classifier(points)
             loss = criterion(pred, target.long())
             pred_choice = pred.data.max(1)[1]
+            train_true.append(label.cpu().numpy())
+            train_pred.append(pred_choice.detach().cpu().numpy())
+            
             correct = pred_choice.eq(target.long().data).cpu().sum()
             mean_correct.append(correct.item() / float(points.size()[0]))
             loss.backward()
@@ -129,7 +142,7 @@ def main(args):
 
         train_instance_acc = np.mean(mean_correct)
         print('Train Instance Accuracy: %f' % train_instance_acc)
-
+        wandb_log['Train Instance Acc'] = train_instance_acc
 
         with torch.no_grad():
             instance_acc, class_acc = test(classifier.eval(), testDataLoader)
