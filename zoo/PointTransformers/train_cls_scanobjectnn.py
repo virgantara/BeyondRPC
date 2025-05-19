@@ -91,7 +91,7 @@ def main(args):
     args.nblocks = 4
     args.transformer_dim = 512
     args.learning_rate = args.lr
-    args.weight_decay = 0.9
+    args.weight_decay = 1e-4
     args.optimizer = 'Adam'
     args.name = "Oddy"
 
@@ -99,7 +99,7 @@ def main(args):
     np.random.seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
-        
+
     device = torch.device("cuda")
 
     classifier = PointTransformerCls(args).to(device)
