@@ -192,15 +192,15 @@ def main(args):
 
         # wandb_log['Train Instance Acc'] = train_instance_acc
         wandb_log['Train Loss'] = train_avg_loss
-        wandb_log['Train Accuracy'] = train_accuracy
-        wandb_log['Train Balanced Accuracy'] = train_balanced_accuracy
+        wandb_log['Train Acc'] = train_accuracy
+        wandb_log['Train AVG Acc'] = train_balanced_accuracy
         # wandb_log['Train Acc'] = train_accuracy
         # wandb_log['Train AVG Acc'] = train_balanced_accuracy
 
         test_loss, test_accuracy, test_balanced_accuracy = test(classifier, testDataLoader)
         wandb_log['Test Loss'] = test_loss
-        wandb_log['Test Accuracy'] = test_accuracy
-        wandb_log['Test Balanced Accuracy'] = test_balanced_accuracy
+        wandb_log['Test Acc'] = test_accuracy
+        wandb_log['Test AVG Acc'] = test_balanced_accuracy
 
         print(f'Test Loss: {test_loss:.4f}, Accuracy: {test_accuracy:.4f}, Balanced Accuracy: {test_balanced_accuracy:.4f}')
 
