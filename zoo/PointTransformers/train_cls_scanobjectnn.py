@@ -208,7 +208,7 @@ def main(args):
             best_instance_acc = test_accuracy
             best_balanced_acc = test_balanced_accuracy
             best_epoch = epoch + 1
-            print('Save model...')
+            print('Saving best model...')
             torch.save({
                 'epoch': best_epoch,
                 'instance_acc': test_accuracy,
@@ -220,6 +220,8 @@ def main(args):
         wandb.log(wandb_log)
         global_epoch += 1
 
+    
+    print('Best Acc',best_instance_acc)
     print('End of training...')
 
 if __name__ == '__main__':
