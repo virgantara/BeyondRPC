@@ -2,21 +2,23 @@
 Author: Benny
 Date: Nov 2019
 """
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))
 from dataset import ScanObjectNN
 import argparse
 import numpy as np
-import os
 import torch
 import datetime
 import logging
 from pathlib import Path
 from tqdm import tqdm
-import sys
 import provider
-import importlib
-import shutil
-import hydra
-import omegaconf
+# import importlib
+# import shutil
+# import hydra
+# import omegaconf
+from models.Oddy.model import PointTransformerCls
 
 
 def test(model, loader, num_class=40):
@@ -41,39 +43,39 @@ def test(model, loader, num_class=40):
     return instance_acc, class_acc
 
 
-@hydra.main(config_path='config', config_name='cls')
 def main(args):
-    omegaconf.OmegaConf.set_struct(args, False)
-
-    '''HYPER PARAMETER'''
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-    logger = logging.getLogger(__name__)
-
-    print(args.pretty())
-
+    
     '''DATA LOADING'''
-    logger.info('Load dataset ...')
+    print('Load dataset ...')
 
-    TRAIN_DATASET = ScanObjectNN(npoint=args.num_point, partition='train')
-    TEST_DATASET = ScanObjectNN(npoint=args.num_point, partition='test')
+    TRAIN_DATASET = ScanObjectNN(num_points=args.num_points, partition='train')
+    TEST_DATASET = ScanObjectNN(num_points=args.num_points, partition='test')
     trainDataLoader = torch.utils.data.DataLoader(TRAIN_DATASET, batch_size=args.batch_size, shuffle=True, num_workers=4)
-    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=args.batch_size, shuffle=False, num_workers=4)
+    testDataLoader = torch.utils.data.DataLoader(TEST_DATASET, batch_size=args.test_batch_size, shuffle=False, num_workers=4)
 
     '''MODEL LOADING'''
     args.num_class = 15
     args.input_dim = 3
-    shutil.copy(hydra.utils.to_absolute_path('models/{}/model.py'.format(args.model.name)), '.')
+    args.nneighbor = 16
+    args.nblocks = 4
+    args.transformer_dim = 512
+    args.learning_rate = 1e-3
+    args.weight_decay = 1e-4
+    args.optimizer = 'Adam'
+    args.name = "Oddy"
 
-    classifier = getattr(importlib.import_module('models.{}.model'.format(args.model.name)), 'PointTransformerCls')(args).cuda()
+    device = torch.device("cuda")
+
+    classifier = PointTransformerCls(args).to(device)
     criterion = torch.nn.CrossEntropyLoss()
 
     try:
         checkpoint = torch.load('best_model.pth')
         start_epoch = checkpoint['epoch']
         classifier.load_state_dict(checkpoint['model_state_dict'])
-        logger.info('Use pretrain model')
+        print('Use pretrain model')
     except:
-        logger.info('No existing model, starting training from scratch...')
+        print('No existing model, starting training from scratch...')
         start_epoch = 0
 
 
@@ -97,9 +99,9 @@ def main(args):
     mean_correct = []
 
     '''TRANING'''
-    logger.info('Start training...')
-    for epoch in range(start_epoch,args.epoch):
-        logger.info('Epoch %d (%d/%s):' % (global_epoch + 1, epoch + 1, args.epoch))
+    print('Start training...')
+    for epoch in range(start_epoch,args.epochs):
+        print('Epoch %d (%d/%s):' % (global_epoch + 1, epoch + 1, args.epochs))
         
         classifier.train()
         for batch_id, data in tqdm(enumerate(trainDataLoader, 0), total=len(trainDataLoader), smoothing=0.9):
@@ -126,7 +128,7 @@ def main(args):
         scheduler.step()
 
         train_instance_acc = np.mean(mean_correct)
-        logger.info('Train Instance Accuracy: %f' % train_instance_acc)
+        print('Train Instance Accuracy: %f' % train_instance_acc)
 
 
         with torch.no_grad():
@@ -138,13 +140,13 @@ def main(args):
 
             if (class_acc >= best_class_acc):
                 best_class_acc = class_acc
-            logger.info('Test Instance Accuracy: %f, Class Accuracy: %f'% (instance_acc, class_acc))
-            logger.info('Best Instance Accuracy: %f, Class Accuracy: %f'% (best_instance_acc, best_class_acc))
+            print('Test Instance Accuracy: %f, Class Accuracy: %f'% (instance_acc, class_acc))
+            print('Best Instance Accuracy: %f, Class Accuracy: %f'% (best_instance_acc, best_class_acc))
 
             if (instance_acc >= best_instance_acc):
-                logger.info('Save model...')
+                print('Save model...')
                 savepath = 'best_model.pth'
-                logger.info('Saving at %s'% savepath)
+                print('Saving at %s'% savepath)
                 state = {
                     'epoch': best_epoch,
                     'instance_acc': instance_acc,
@@ -155,7 +157,49 @@ def main(args):
                 torch.save(state, savepath)
             global_epoch += 1
 
-    logger.info('End of training...')
+    print('End of training...')
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Point Cloud Recognition')
+    parser.add_argument('--exp_name', type=str, default='exp', metavar='N',
+                        help='Name of the experiment')
+    parser.add_argument('--dataset', type=str, default='modelnet40', metavar='N',
+                        choices=['modelnet40','scanobjectnn'])
+    parser.add_argument('--batch_size', type=int, default=32, metavar='batch_size',
+                        help='Size of batch)')
+    parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
+                        help='Size of batch)')
+    parser.add_argument('--epochs', type=int, default=250, metavar='N',
+                        help='number of episode to train ')
+    parser.add_argument('--use_sgd', type=bool, default=True,
+                        help='Use SGD')
+    parser.add_argument('--lr', type=float, default=0.0001, metavar='LR',
+                        help='learning rate (default: 0.001, 0.1 if using sgd)')
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
+                        help='SGD momentum (default: 0.9)')
+    parser.add_argument('--no_cuda', type=bool, default=False,
+                        help='enables CUDA training')
+    parser.add_argument('--seed', type=int, default=1, metavar='S',
+                        help='random seed (default: 1)')
+    parser.add_argument('--eval', type=bool, default=False,
+                        help='evaluate the model')
+    parser.add_argument('--eval_corrupt', type=bool, default=False,
+                        help='evaluate the model under corruption')
+    parser.add_argument('--num_points', type=int, default=1024,
+                        help='num of points to use')
+    parser.add_argument('--dropout', type=float, default=0.5,
+                        help='dropout rate')
+    parser.add_argument('--model_path', type=str, default='', metavar='N',
+                        help='Pretrained model path')
+    parser.add_argument('--model', type=str, default='PCT', choices=['RPC', 'PCT', 'RPCV2', 'PT'], help='choose model')
+    parser.add_argument('--fusion_type', type=str, default='concat',
+                    choices=['concat', 'add', 'gated', 'attention', 'crossattn'],
+                    help='Fusion strategy')
+    parser.add_argument('--use_residual', action='store_true',
+                    help='Enable residual connection after fusion')
+    parser.add_argument('--pretrain_path', type=str, default='', metavar='N',
+                        help='Pretrained model path AdaCROSSNET')
+    parser.add_argument('--knn', action='store_true', help='use knn instead ball-query function')
+
+    args = parser.parse_args()
+    main(args)

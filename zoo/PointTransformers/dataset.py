@@ -11,7 +11,8 @@ import h5py
 
 
 def load_ScanObjectNN(partition):
-    BASE_DIR = '/home/deep/OddyProjects/DynamicCrossNet/data/ScanObjectNN'
+    BASE_DIR = '/home/virgantara/PythonProjects/DualGraphPoint/data/ScanObjectNN'
+    # BASE_DIR = '/home/deep/OddyProjects/DynamicCrossNet/data/ScanObjectNN'
     DATA_DIR = os.path.join(BASE_DIR, 'main_split')
     h5_name = os.path.join(DATA_DIR, f'{partition}.h5')
     f = h5py.File(h5_name)
