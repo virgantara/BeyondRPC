@@ -133,7 +133,7 @@ class PointTransformerCls(nn.Module):
 
     def forward(self, x):
         xyz = x[..., :3]
-        x = x.permute(0, 2, 1)
+        # x = x.permute(0, 2, 1)
         batch_size, _, _ = x.size()
         x = self.relu(self.bn1(self.conv1(x))) # B, D, N
         x = self.relu(self.bn2(self.conv2(x))) # B, D, N
