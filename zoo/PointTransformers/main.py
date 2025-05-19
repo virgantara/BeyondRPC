@@ -104,7 +104,7 @@ def train(args, io):
         for data, label in tqdm(train_loader):
 
             data, label = data.to(device), label.to(device).squeeze()
-            # data = data.permute(0, 2, 1) # (B, 3, N)
+            data = data.permute(0, 2, 1) # (B, 3, N)
                 
             batch_size = data.size()[0]
             opt.zero_grad()
