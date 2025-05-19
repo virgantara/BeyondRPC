@@ -181,6 +181,8 @@ def main(args):
                 torch.save(state, savepath)
             global_epoch += 1
 
+        wandb.log(wandb_log)
+
     print('End of training...')
 
 if __name__ == '__main__':
