@@ -1,5 +1,7 @@
 # AdaDCGRL: Adaptive Contrastive Pretraining and Curve-Graph Fusion for Robust Point Cloud Understanding
 
+[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/beyondrpc-a-contrastive-and-augmentation/point-cloud-classification-on-pointcloud-c)](https://paperswithcode.com/sota/point-cloud-classification-on-pointcloud-c?p=beyondrpc-a-contrastive-and-augmentation)
+
 AdaDCGRL is a two-stage framework that combines **contrastive pretraining using AdaCrossNet with DGCNN** and **structural-aware fine-tuning using DCGRL**, designed for 3D point cloud classification under corruption. This project supports training on clean data and evaluation on corrupted data (PointCloud-C).
 
 ## 🔍 Key Contributions
