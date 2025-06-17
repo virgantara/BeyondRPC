@@ -1,8 +1,8 @@
-# AdaDCGRL: Adaptive Contrastive Pretraining and Curve-Graph Fusion for Robust Point Cloud Understanding
+# BeyondRPC: BeyondRPC: A Contrastive and Augmentation-Driven Framework for Robust Point Cloud Understanding 
 
 [![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/beyondrpc-a-contrastive-and-augmentation/point-cloud-classification-on-pointcloud-c)](https://paperswithcode.com/sota/point-cloud-classification-on-pointcloud-c?p=beyondrpc-a-contrastive-and-augmentation)
 
-AdaDCGRL is a two-stage framework that combines **contrastive pretraining using AdaCrossNet with DGCNN** and **structural-aware fine-tuning using DCGRL**, designed for 3D point cloud classification under corruption. This project supports training on clean data and evaluation on corrupted data (PointCloud-C).
+Beyond RPC is a framework combining 3D Point Cloud Adaptive Contrastive Learning with WOLFMix 
 
 ## 🔍 Key Contributions
 
@@ -11,6 +11,9 @@ AdaDCGRL is a two-stage framework that combines **contrastive pretraining using 
 - ✅ **Downstream with DCGRL**: A dual-branch curve-graph architecture for robust structural representation.
 - ✅ **Evaluation on Corrupted Data**: Includes PointCloud-C evaluation on ModelNet40 and ShapeNetPart.
 
+## Paper Link
+
+[PDF](https://inass.org/wp-content/uploads/2025/05/2025073142-3.pdf)
 ---
 
 ## Acknowledgements
