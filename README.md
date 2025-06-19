@@ -1,7 +1,5 @@
 # BeyondRPC: A Contrastive and Augmentation-Driven Framework for Robust Point Cloud Understanding 
 
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/beyondrpc-a-contrastive-and-augmentation/point-cloud-classification-on-pointcloud-c)](https://paperswithcode.com/sota/point-cloud-classification-on-pointcloud-c?p=beyondrpc-a-contrastive-and-augmentation)
-
 Beyond RPC is a framework combining 3D Point Cloud Adaptive Contrastive Learning with WOLFMix 
 
 ## 🔍 Key Contributions
