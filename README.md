@@ -11,6 +11,11 @@ Beyond RPC is a framework combining 3D Point Cloud Adaptive Contrastive Learning
 ## Paper Link
 [PDF](https://inass.org/wp-content/uploads/2025/05/2025073142-3.pdf)
 
+
+> ⚠️ **Correction Note (June 2025):**  
+> In the published paper, the value reported as the mean Corruption Error (mCE) was mistakenly computed as the square root of the actual mCE.  
+> The correct mCE is **0.59**. This correction does **not affect the ranking between models or the conclusions of the paper.**
+
 ---
 
 ## Acknowledgements
